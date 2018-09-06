@@ -281,13 +281,24 @@ final class LazyList[+A] private(private[this] var lazyState: () => LazyList.Sta
     * @return The lazy list containing elements of this lazy list and the iterable object.
     */
   def lazyAppendedAll[B >: A](suffix: => collection.IterableOnce[B]): LazyList[B] =
+    lazyAppendedAllImpl(suffix)
+
+  override def appendedAll[B >: A](suffix: IterableOnce[B]): LazyList[B] =
+    if (knownIsEmpty) LazyList.from(suffix)
+    else lazyAppendedAllImpl(suffix)
+
+  override def appended[B >: A](elem: B): LazyList[B] =
+    if (knownIsEmpty) newLL(sCons(elem, LazyList.empty))
+    else lazyAppendedAllImpl(Iterator.single(elem))
+
+  private def lazyAppendedAllImpl[B >: A](suffix: => collection.IterableOnce[B]): LazyList[B] =
     newLL {
       if (isEmpty) suffix match {
         case lazyList: LazyList[B]       => lazyList.state // don't recompute the LazyList
         case coll if coll.knownSize == 0 => State.Empty
         case _                           => stateFromColl(suffix)
       }
-      else sCons(head, tail lazyAppendedAll suffix)
+      else sCons(head, tail lazyAppendedAllImpl suffix)
     }
 
   override def equals(that: Any): Boolean =
@@ -306,6 +317,9 @@ final class LazyList[+A] private(private[this] var lazyState: () => LazyList.Sta
         else tail.scanLeftState(op(z, head))(op)
       }
     )
+
+  override def scanRight[B](z: B)(op: (A, B) => B): LazyList[B] =
+    reverse.scanLeft(z)((b, a) => op(a, b)) // TODO: revisit
 
   /** LazyList specialization of reduceLeft which allows GC to collect
     *  along the way.
@@ -414,6 +428,8 @@ final class LazyList[+A] private(private[this] var lazyState: () => LazyList.Sta
         else stateFromIteratorConcatSuffix(it)(tail.flatMapTrampoline(f))
     }
 
+  override def flatten[B](implicit asIterable: A => IterableOnce[B]): LazyList[B] = flatMap(asIterable)
+
   override def zip[B](that: collection.IterableOnce[B]): LazyList[(A, B)] =
     if (knownIsEmpty) LazyList.empty
     else that match {
@@ -519,6 +535,8 @@ final class LazyList[+A] private(private[this] var lazyState: () => LazyList.Sta
     if (scout.isEmpty) state
     else tail.takeRightState(scout.tail)
 
+  override def slice(from: Int, until: Int): LazyList[A] = take(until).drop(from)
+
   override def reverse: LazyList[A] = reverseOnto(LazyList.empty)
 
   // need contravariant type B to make the compiler happy - still returns LazyList[A]
@@ -526,6 +544,45 @@ final class LazyList[+A] private(private[this] var lazyState: () => LazyList.Sta
   private def reverseOnto[B >: A](tl: LazyList[B]): LazyList[B] =
     if (isEmpty) tl
     else tail.reverseOnto(newLL(sCons(head, tl)))
+
+  override def diff(that: collection.Seq[_ >: A]): LazyList[A] =
+    if (knownIsEmpty) LazyList.empty
+    else super.diff(that)
+
+  // TODO: override to detect cycles
+  override def distinct: LazyList[A] = super.distinct
+
+  // TODO: override to detect cycles
+  override def distinctBy[B](f: A => B): LazyList[A] = super.distinctBy(f)
+
+  override def endsWith[B >: A](that: scala.Iterable[B]): Boolean =
+    takeRight(that.size).startsWith(that)
+
+  override def lastIndexOfSlice[B >: A](that: collection.Seq[B], end: Int): Int = {
+    val reversed = take(end + 1).reverse
+    val res = reversed.indexOfSlice(that.reverse, 0)
+    if (res < 0) res else reversed.length - 1 - res
+  }
+
+  override def lastIndexWhere(p: A => Boolean, end: Int): Int = {
+    val reversed = take(end + 1).reverse
+    val res = reversed.indexWhere(p, 0)
+    if (res < 0) res else reversed.length - 1 - res
+  }
+
+  override def grouped(size: Int): Iterator[LazyList[A]] = {
+    require(size > 0, "size must be positive, but was " + size)
+    Iterator.empty ++ slidingImpl(size, size) // concat with empty iterator so that `slidingImpl` is lazy
+  }
+
+  override def sliding(size: Int, step: Int): Iterator[LazyList[A]] = {
+    require(size > 0 && step > 0, s"size=$size and step=$step, but both must be positive")
+    Iterator.empty ++ slidingImpl(size, step) // concat with empty iterator so that `slidingImpl` is lazy
+  }
+
+  private def slidingImpl(size: Int, step: Int): Iterator[LazyList[A]] =
+    if (isEmpty) Iterator.empty
+    else Iterator.single(take(size)) ++ drop(step).slidingImpl(size, step)
 
   /** Appends all elements of this $coll to a string builder using start, end, and separator strings.
     *  The written text begins with the string `start` and ends with the string `end`.

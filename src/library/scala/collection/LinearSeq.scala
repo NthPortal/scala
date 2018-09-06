@@ -23,6 +23,9 @@ trait LinearSeqOps[+A, +CC[X] <: LinearSeq[X], +C <: LinearSeq[A] with LinearSeq
   def head: A
   def tail: C
 
+  override def headOption: Option[A] =
+    if (isEmpty) None else Some(head)
+
   def iterator: Iterator[A] =
     if (knownSize == 0) Iterator.empty
     else new LinearSeqIterator[A](toSeq)

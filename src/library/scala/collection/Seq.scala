@@ -781,19 +781,17 @@ trait SeqOps[+A, +CC[_], +C] extends Any
     *                If an element value `x` appears
     *                ''n'' times in `that`, then the first ''n'' occurrences of `x` will not form
     *                part of the result, but any following occurrences will.
-    *  $willNotTerminateInf
-    *  $willForceEvaluation
     */
   def diff(that: Seq[_ >: A]): C = {
     val occ = occCounts(that)
-    //TODO make diff and intersect use efficient lazy implementations now that fromSpecific accepts an IterableOnce
-    val b = newSpecificBuilder
-    for (x <- this) {
+    fromSpecific(iterator.filter { x =>
       val ox = occ(x)  // Avoid multiple map lookups
-      if (ox == 0) b += x
-      else occ(x) = ox - 1
-    }
-    b.result()
+      if (ox == 0) true
+      else {
+        occ(x) = ox - 1
+        false
+      }
+    })
   }
 
   /** Computes the multiset intersection between this $coll and another sequence.
@@ -804,20 +802,16 @@ trait SeqOps[+A, +CC[_], +C] extends Any
     *                If an element value `x` appears
     *                ''n'' times in `that`, then the first ''n'' occurrences of `x` will be retained
     *                in the result, but any following occurrences will be omitted.
-    *  $mayNotTerminateInf
-    *  $willForceEvaluation
     */
   def intersect(that: Seq[_ >: A]): C = {
     val occ = occCounts(that)
-    val b = newSpecificBuilder
-    for (x <- this) {
+    fromSpecific(iterator.filter { x =>
       val ox = occ(x)  // Avoid multiple map lookups
       if (ox > 0) {
-        b += x
         occ(x) = ox - 1
-      }
-    }
-    b.result()
+        true
+      } else false
+    })
   }
 
   /** Produces a new $coll where a slice of elements in this $coll is replaced by another sequence.
