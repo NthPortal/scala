@@ -572,12 +572,14 @@ final class LazyList[+A] private(private[this] var lazyState: () => LazyList.Sta
 
   override def grouped(size: Int): Iterator[LazyList[A]] = {
     require(size > 0, "size must be positive, but was " + size)
-    Iterator.empty ++ slidingImpl(size, size) // concat with empty iterator so that `slidingImpl` is lazy
+    if (knownIsEmpty) Iterator.empty
+    else Iterator.empty ++ slidingImpl(size, size) // concat with empty iterator so that `slidingImpl` is lazy
   }
 
   override def sliding(size: Int, step: Int): Iterator[LazyList[A]] = {
     require(size > 0 && step > 0, s"size=$size and step=$step, but both must be positive")
-    Iterator.empty ++ slidingImpl(size, step) // concat with empty iterator so that `slidingImpl` is lazy
+    if (knownIsEmpty) Iterator.empty
+    else Iterator.empty ++ slidingImpl(size, step) // concat with empty iterator so that `slidingImpl` is lazy
   }
 
   private def slidingImpl(size: Int, step: Int): Iterator[LazyList[A]] =

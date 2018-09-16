@@ -287,7 +287,7 @@ class LazyListLazinessTest {
   /** Asserts that a predicate holds when a given operation is performed on
     * a lazy list that is known to be empty.
     */
-  def assertKnownEmptyYields(op: LazyListToLazyListOp, predicate: LazyListOp[Boolean]): Unit = {
+  def assertKnownEmptyYields[A](op: LazyListOp[A])(predicate: A => Boolean): Unit = {
     assert(predicate(op(LazyList.empty)))
   }
 
@@ -295,7 +295,7 @@ class LazyListLazinessTest {
     * when performed on a lazy list that is known to be empty.
     */
   def assertKnownEmptyYieldsKnownEmpty(op: LazyListToLazyListOp): Unit =
-    assertKnownEmptyYields(op, _.knownSize == 0)
+    assertKnownEmptyYields(op)(_.knownSize == 0)
 
   // if this fails, all the rest will fail
   @Test
@@ -331,6 +331,16 @@ class LazyListLazinessTest {
     assertLazyAllHeads(op)
     assertLazyAllSkipping(op, 0)
     assertKnownEmptyYieldsKnownEmpty(op)
+  }
+
+  @Test
+  def isEmpty_properlyLazy(): Unit = {
+    assertLazyAllSkipping(_.isEmpty, 0, skipExtraState = true)
+  }
+
+  @Test
+  def nonEmpty_properlyLazy(): Unit = {
+    assertLazyAllSkipping(_.nonEmpty, 0, skipExtraState = true)
   }
 
   @Test
@@ -378,6 +388,11 @@ class LazyListLazinessTest {
       assertLazyNextStateWhenHeadEvaluated(op, d)
       assertKnownEmptyYieldsKnownEmpty(op)
     }
+  }
+
+  @Test
+  def partitionWith_properlyLazy(): Unit = {
+    TO_IMPLEMENT
   }
 
   @Test
@@ -498,7 +513,7 @@ class LazyListLazinessTest {
     genericAppendedColl_properlyLazy(_ :++ _)
 
     val ll = LazyList.from(1)
-    assertKnownEmptyYields(_ appendedAll ll, _ eq ll)
+    assertKnownEmptyYields(_ appendedAll ll)(_ eq ll)
   }
 
   @Test
@@ -635,9 +650,19 @@ class LazyListLazinessTest {
     assertKnownEmptyYieldsKnownEmpty(op)
   }
 
+  @Test
+  def splitAt_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
   @Test // scala/bug#11089
   def last_properlyLazy(): Unit = {
     assertLazyInitialHeads(_.last)
+  }
+
+  @Test
+  def lastOption_properlyLazy(): Unit = {
+    assertLazyInitialHeads(_.lastOption)
   }
 
   @Test
@@ -648,11 +673,28 @@ class LazyListLazinessTest {
   @Test
   def lengthCompare_properlyLazy(): Unit = {
     assertLazyAllHeads(_.lengthCompare(LazinessChecker.count))
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def sizeCompare_properlyLazy(): Unit = {
+    TO_IMPLEMENT
   }
 
   @Test
   def reverse_properlyLazy(): Unit = {
     assertLazyAllHeads(_.reverse)
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def reverseIterator_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def reverseMap_properlyLazy(): Unit = {
+    TO_IMPLEMENT
   }
 
   @Test
@@ -725,6 +767,11 @@ class LazyListLazinessTest {
   }
 
   @Test
+  def startsWith_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
   def endsWith_properlyLazy(): Unit = {
     assertLazyInitialHeads(_.endsWith(1 to 10))
   }
@@ -753,6 +800,7 @@ class LazyListLazinessTest {
     assertLazyAllHeads(op andThen { _ foreach { _.length } })
     assertLazyAllSkipping(op andThen { _.hasNext }, 0, skipExtraState = true)
     assertLazyAllSkipping(op andThen { _.next().force }, 3)
+    assertKnownEmptyYields(op)(_ eq Iterator.empty)
   }
 
   @Test
@@ -843,6 +891,161 @@ class LazyListLazinessTest {
     assertLazyHeadWhenNextStateEvaluated(op)
     assertLazyHeadWhenNextHeadEvaluated(op)
     assertLazyFinalHeads(op.andThen(_.init.force))
+  }
+
+  @Test
+  def inits_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def tails_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def intersect_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def iterator_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def knownSize_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def max_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def maxBy_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def maxOption_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def maxByOption_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def min_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def minBy_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def minOption_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def minByOption_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def padTo_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def patch_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def permutations_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def sameElements_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def search_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def segmentLength_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def span_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def to_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def transpose_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def union_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def unzip_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def unzip3_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def updated_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def view_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def zip_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def lazyZip_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def zipAll_properlyLazy(): Unit = {
+    TO_IMPLEMENT
+  }
+
+  @Test
+  def zipWithIndex_properlyLazy(): Unit = {
+    TO_IMPLEMENT
   }
 
   /* factory laziness tests */
