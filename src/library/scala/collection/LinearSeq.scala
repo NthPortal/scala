@@ -66,6 +66,30 @@ trait LinearSeqOps[+A, +CC[X] <: LinearSeq[X], +C <: LinearSeq[A] with LinearSeq
     else loop(0, coll)
   }
 
+  override def sizeCompare(that: Iterable[_]): Int = {
+    val thatKnownSize = that.knownSize
+
+    if (thatKnownSize >= 0) this lengthCompare thatKnownSize
+    else that match {
+      case that: LinearSeq[_] =>
+        var thisSeq = this
+        var thatSeq = that
+        while (thisSeq.nonEmpty && thatSeq.nonEmpty) {
+          thisSeq = thisSeq.tail
+          thatSeq = thatSeq.tail
+        }
+        java.lang.Boolean.compare(thisSeq.nonEmpty, thatSeq.nonEmpty)
+      case _                  =>
+        var thisSeq = this
+        val thatIt = that.iterator
+        while (thisSeq.nonEmpty && thatIt.hasNext) {
+          thisSeq = thisSeq.tail
+          thatIt.next()
+        }
+        java.lang.Boolean.compare(thisSeq.nonEmpty, thatIt.hasNext)
+    }
+  }
+
   override def isDefinedAt(x: Int): Boolean = x >= 0 && lengthCompare(x) > 0
 
   // `apply` is defined in terms of `drop`, which is in turn defined in

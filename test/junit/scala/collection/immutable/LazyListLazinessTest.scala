@@ -652,7 +652,15 @@ class LazyListLazinessTest {
 
   @Test
   def splitAt_properlyLazy(): Unit = {
-    TO_IMPLEMENT
+    val split = lazyListOp(_ splitAt 4)
+    val op1 = split.andThen(_._1)
+    val op2 = split.andThen(_._2)
+    for (op <- op1 :: op2 :: Nil) {
+      // TODO
+      assertRepeatedlyFullyLazy(op)
+      assertLazyNextStateWhenHeadEvaluated(op)
+      assertKnownEmptyYieldsKnownEmpty(op)
+    }
   }
 
   @Test // scala/bug#11089
@@ -672,19 +680,26 @@ class LazyListLazinessTest {
 
   @Test
   def lengthCompare_properlyLazy(): Unit = {
-    assertLazyAllHeads(_.lengthCompare(LazinessChecker.count))
-    TO_IMPLEMENT
+    assertLazyAllHeads(_ lengthCompare LazinessChecker.count)
+    assertLazyAllSkipping(_ lengthCompare 3, 3, skipExtraState = true)
   }
 
   @Test
   def sizeCompare_properlyLazy(): Unit = {
-    TO_IMPLEMENT
+    for (factory <- LazyList :: Vector :: Nil) {
+      assertLazyAllHeads(_ sizeCompare factory.fill(LazinessChecker.count)(1))
+      assertLazyAllSkipping(_ sizeCompare factory.fill(3)(1), 3, skipExtraState = true)
+    }
+
+    // TODO: test LazyList as arg to method
   }
 
   @Test
   def reverse_properlyLazy(): Unit = {
-    assertLazyAllHeads(_.reverse)
-    TO_IMPLEMENT
+    val op = lazyListOp(_.reverse)
+    assertLazyAllHeads(op)
+    assertLazyHeadWhenNextStateEvaluated(op)
+    assertLazyHeadWhenNextHeadEvaluated(op)
   }
 
   @Test
