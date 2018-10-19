@@ -199,7 +199,6 @@ trait LinearSeqOps[+A, +CC[X] <: LinearSeq[X], +C <: LinearSeq[A] with LinearSeq
     last
   }
 
-  /** $willForceEvaluation */
   override def tails: Iterator[C] =
     Iterator.iterate(coll)(_.tail).takeWhile(_.nonEmpty) ++ Iterator.single(newSpecificBuilder.result())
 }

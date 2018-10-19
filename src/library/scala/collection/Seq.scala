@@ -478,6 +478,8 @@ trait SeqOps[+A, +CC[_], +C] extends Any
 
   /** Iterates over distinct permutations.
     *
+    *  $willForceEvaluation
+    *
     *  @return   An Iterator which traverses the distinct permutations of this $coll.
     *  @example  `"abb".permutations = Iterator(abb, bab, bba)`
     */

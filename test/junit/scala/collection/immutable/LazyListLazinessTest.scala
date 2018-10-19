@@ -121,6 +121,8 @@ class LazyListLazinessTest {
     type ExceptionProvider = String => Throwable
 
     final val count = 16
+    final val halfCount = count / 2
+    final val doubleCount = count * 2
     final val indices: Range = 0 until count
 
     private val defaultException: ExceptionProvider = new AssertionError(_)
@@ -392,7 +394,15 @@ class LazyListLazinessTest {
 
   @Test
   def partitionWith_properlyLazy(): Unit = {
-    TO_IMPLEMENT
+    val partition = lazyListOp(_.partitionWith(i => if (i % 2 == 0) Left(i) else Right(i)))
+    val op1 = partition.andThen(_._1)
+    val op2 = partition.andThen(_._2)
+    val d = OpLazinessChecker.DropProfile(dropCount = 1, repeatedDrops = true)
+    for (op <- op1 :: op2 :: Nil) {
+      assertRepeatedlyFullyLazy(op, d)
+      assertLazyNextStateWhenHeadEvaluated(op, d)
+      assertKnownEmptyYieldsKnownEmpty(op)
+    }
   }
 
   @Test
@@ -653,12 +663,14 @@ class LazyListLazinessTest {
   @Test
   def splitAt_properlyLazy(): Unit = {
     val split = lazyListOp(_ splitAt 4)
-    val op1 = split.andThen(_._1)
-    val op2 = split.andThen(_._2)
-    for (op <- op1 :: op2 :: Nil) {
-      // TODO
-      assertRepeatedlyFullyLazy(op)
-      assertLazyNextStateWhenHeadEvaluated(op)
+    val ops: Map[LazyListToLazyListOp, OpLazinessChecker.DropProfile] = Map(
+      split.andThen(_._1) -> OpLazinessChecker.NoDrops,
+      split.andThen(_._2) -> OpLazinessChecker.DropProfile(dropCount = 4, repeatedDrops = false),
+    )
+
+    for ((op, d) <- ops) {
+      assertRepeatedlyFullyLazy(op, d)
+      assertLazyNextStateWhenHeadEvaluated(op, d)
       assertKnownEmptyYieldsKnownEmpty(op)
     }
   }
@@ -698,18 +710,34 @@ class LazyListLazinessTest {
   def reverse_properlyLazy(): Unit = {
     val op = lazyListOp(_.reverse)
     assertLazyAllHeads(op)
-    assertLazyHeadWhenNextStateEvaluated(op)
-    assertLazyHeadWhenNextHeadEvaluated(op)
+    assertLazyInitialHeads(op.andThen(_.take(LazinessChecker.halfCount).force))
+    assertLazyFinalHeads(op.andThen(_.drop(LazinessChecker.halfCount).force))
+    assertKnownEmptyYieldsKnownEmpty(op)
+  }
+
+  @Test
+  def iterator_properlyLazy(): Unit = {
+    val op = lazyListOp(_.iterator.to(LazyList))
+    assertLazyAllHeads(op)
+    assertLazyNextStateWhenHeadEvaluated(op)
+    assertKnownEmptyYieldsKnownEmpty(op)
   }
 
   @Test
   def reverseIterator_properlyLazy(): Unit = {
-    TO_IMPLEMENT
+    val op = lazyListOp(_.reverseIterator.to(LazyList))
+    assertLazyAllHeads(op)
+    assertLazyInitialHeads(op.andThen(_.take(LazinessChecker.halfCount).force))
+    assertKnownEmptyYieldsKnownEmpty(op)
   }
 
   @Test
   def reverseMap_properlyLazy(): Unit = {
-    TO_IMPLEMENT
+    val op = lazyListOp(_.reverseMap(_ + 1))
+    assertLazyAllHeads(op)
+    assertLazyInitialHeads(op.andThen(_.take(LazinessChecker.halfCount).force))
+    assertLazyFinalHeads(op.andThen(_.drop(LazinessChecker.halfCount).force))
+    assertKnownEmptyYieldsKnownEmpty(op)
   }
 
   @Test
@@ -732,7 +760,7 @@ class LazyListLazinessTest {
 
     // check laziness of slice when it is a `LazyList`
     val checker = new OpLazinessChecker
-    assert(!LazyList.from(3).take(LazinessChecker.count * 2).containsSlice(checker.lazyList))
+    assert(!LazyList.from(3).take(LazinessChecker.doubleCount).containsSlice(checker.lazyList))
     assertNotEvaluatedSkipping(checker, 1, skipExtraState = false)
   }
 
@@ -783,12 +811,16 @@ class LazyListLazinessTest {
 
   @Test
   def startsWith_properlyLazy(): Unit = {
-    TO_IMPLEMENT
+    import LazinessChecker._
+    assertLazyAllSkipping(_.startsWith(0 until halfCount), halfCount)
+    assertLazyAllSkipping(_.startsWith(halfCount to count), 1)
   }
 
   @Test
   def endsWith_properlyLazy(): Unit = {
-    assertLazyInitialHeads(_.endsWith(1 to 10))
+    import LazinessChecker._
+    assertLazyInitialHeads(_.endsWith(1 to halfCount))
+    assertLazyInitialHeads(_.endsWith(halfCount until count))
   }
 
   @Test
@@ -848,7 +880,7 @@ class LazyListLazinessTest {
 
     // check laziness of slice when it is a `LazyList`
     val checker = new OpLazinessChecker
-    assertEquals(-1, LazyList.from(3).take(LazinessChecker.count * 2).indexOfSlice(checker.lazyList))
+    assertEquals(-1, LazyList.from(3).take(LazinessChecker.doubleCount).indexOfSlice(checker.lazyList))
     assertNotEvaluatedSkipping(checker, 1, skipExtraState = false)
   }
 
@@ -880,7 +912,7 @@ class LazyListLazinessTest {
 
     // check laziness of slice when it is a `LazyList`
     val checker = new OpLazinessChecker
-    assertEquals(-1, LazyList.from(3).take(LazinessChecker.count * 2).lastIndexOfSlice(checker.lazyList))
+    assertEquals(-1, LazyList.from(3).take(LazinessChecker.doubleCount).lastIndexOfSlice(checker.lazyList))
     checker.assertHead(evaluated = false, 0)
     checker.assertHead(evaluated = false, 1)
   }
@@ -910,81 +942,50 @@ class LazyListLazinessTest {
 
   @Test
   def inits_properlyLazy(): Unit = {
-    TO_IMPLEMENT
+    val op = lazyListOp(_.inits.drop(LazinessChecker.halfCount).next())
+    assertLazyHeadWhenNextStateEvaluated(op)
+    assertLazyHeadWhenNextHeadEvaluated(op)
+    assertLazyFinalHeads(op.andThen(_.force))
   }
 
   @Test
   def tails_properlyLazy(): Unit = {
-    TO_IMPLEMENT
+    val tails = lazyListOp(_.tails)
+    val op = tails.andThen(_.next())
+    assertLazyNextStateWhenHeadEvaluated(op)
+    assertLazyHeadWhenNextStateEvaluated(op)
+    assertLazyHeadWhenNextHeadEvaluated(op)
+    assertLazyInitialHeads(tails.andThen(_.drop(LazinessChecker.halfCount).next().force))
   }
 
   @Test
   def intersect_properlyLazy(): Unit = {
-    TO_IMPLEMENT
-  }
-
-  @Test
-  def iterator_properlyLazy(): Unit = {
-    TO_IMPLEMENT
+    val op = lazyListOp(_.intersect(LazinessChecker.indices))
+    assertRepeatedlyFullyLazy(op)
+    assertLazyNextStateWhenHeadEvaluated(op)
+    assertKnownEmptyYieldsKnownEmpty(op)
   }
 
   @Test
   def knownSize_properlyLazy(): Unit = {
-    TO_IMPLEMENT
-  }
-
-  @Test
-  def max_properlyLazy(): Unit = {
-    TO_IMPLEMENT
-  }
-
-  @Test
-  def maxBy_properlyLazy(): Unit = {
-    TO_IMPLEMENT
-  }
-
-  @Test
-  def maxOption_properlyLazy(): Unit = {
-    TO_IMPLEMENT
-  }
-
-  @Test
-  def maxByOption_properlyLazy(): Unit = {
-    TO_IMPLEMENT
-  }
-
-  @Test
-  def min_properlyLazy(): Unit = {
-    TO_IMPLEMENT
-  }
-
-  @Test
-  def minBy_properlyLazy(): Unit = {
-    TO_IMPLEMENT
-  }
-
-  @Test
-  def minOption_properlyLazy(): Unit = {
-    TO_IMPLEMENT
-  }
-
-  @Test
-  def minByOption_properlyLazy(): Unit = {
-    TO_IMPLEMENT
+    val checker = new OpLazinessChecker
+    checker.lazyList.knownSize
+    checker.assertAllStates(evaluated = false)
+    checker.assertAllHeads(evaluated = false)
   }
 
   @Test
   def padTo_properlyLazy(): Unit = {
-    TO_IMPLEMENT
+    val op = lazyListOp(_.padTo(LazinessChecker.doubleCount, -1))
+    assertRepeatedlyFullyLazy(op)
+    assertLazyNextStateWhenHeadEvaluated(op)
+    assertLazyHeadWhenNextStateEvaluated(op)
+    assertLazyHeadWhenNextHeadEvaluated(op)
   }
 
   @Test
   def patch_properlyLazy(): Unit = {
-    TO_IMPLEMENT
-  }
-
-  @Test
-  def permutations_properlyLazy(): Unit = {
+    val op = lazyListOp(_.patch(LazinessChecker.halfCount, 1 :: Nil, 1))
     TO_IMPLEMENT
   }
 

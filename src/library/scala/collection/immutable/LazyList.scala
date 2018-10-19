@@ -343,6 +343,11 @@ final class LazyList[+A] private(private[this] var lazyState: () => LazyList.Sta
 
   override def partition(p: A => Boolean): (LazyList[A], LazyList[A]) = (filter(p), filterNot(p))
 
+  override def partitionWith[A1, A2](f: A => Either[A1, A2]): (LazyList[A1], LazyList[A2]) = {
+    val (left, right) = map(f).partition(_.isLeft)
+    (left.map(_.asInstanceOf[Left[A1, _]].value), right.map(_.asInstanceOf[Right[_, A2]].value))
+  }
+
   @noinline // Workaround scala/bug#9137, see https://github.com/scala/scala/pull/4284#issuecomment-73180791
   override def filter(pred: A => Boolean): LazyList[A] =
     if (knownIsEmpty) LazyList.empty
@@ -539,6 +544,13 @@ final class LazyList[+A] private(private[this] var lazyState: () => LazyList.Sta
 
   override def reverse: LazyList[A] = reverseOnto(LazyList.empty)
 
+  override protected def reversed: LazyList[A] = reverse
+
+  override def reverseIterator: Iterator[A] = reverse.iterator
+
+  @deprecated("Use .reverse.map(f) instead of .reverseMap(f)", "2.13.0")
+  override def reverseMap[B](f: A => B): LazyList[B] = reverse.map(f)
+
   // need contravariant type B to make the compiler happy - still returns LazyList[A]
   @tailrec
   private def reverseOnto[B >: A](tl: LazyList[B]): LazyList[B] =
@@ -548,6 +560,10 @@ final class LazyList[+A] private(private[this] var lazyState: () => LazyList.Sta
   override def diff(that: collection.Seq[_ >: A]): LazyList[A] =
     if (knownIsEmpty) LazyList.empty
     else super.diff(that)
+
+  override def intersect(that: collection.Seq[_ >: A]): LazyList[A] =
+    if (knownIsEmpty) LazyList.empty
+    else super.intersect(that)
 
   // TODO: override to detect cycles
   override def distinct: LazyList[A] = super.distinct
@@ -585,6 +601,18 @@ final class LazyList[+A] private(private[this] var lazyState: () => LazyList.Sta
   private def slidingImpl(size: Int, step: Int): Iterator[LazyList[A]] =
     if (isEmpty) Iterator.empty
     else Iterator.single(take(size)) ++ drop(step).slidingImpl(size, step)
+
+  override def padTo[B >: A](len: Int, elem: B): LazyList[B] = {
+    if (len <= 0) this
+    else newLL {
+      if (isEmpty) LazyList.fill(len)(elem).state
+      else sCons(head, tail.padTo(len - 1, elem))
+    }
+  }
+
+  // TODO: override
+  override def patch[B >: A](from: Int, other: IterableOnce[B], replaced: Int): LazyList[B] =
+    super.patch(from, other, replaced)
 
   /** Appends all elements of this $coll to a string builder using start, end, and separator strings.
     *  The written text begins with the string `start` and ends with the string `end`.
