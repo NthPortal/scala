@@ -3,35 +3,39 @@ trait RejectedLiterals {
 
   def missingHex: Int    = { 0x }        // line 4: was: not reported, taken as zero
 
-  def leadingZeros: Int  = { 01 }        // line 6: no leading zero
+  def missingBin: Int    = { 0b }        // line 6: missing integer number
 
-  def tooManyZeros: Int  = { 00 }        // line 8: no leading zero
+  def leadingZeros: Int  = { 01 }        // line 8: no leading zero
 
-  def zeroOfNine: Int    = { 09 }        // line 10: no leading zero
+  def tooManyZeros: Int  = { 00 }        // line 10: no leading zero
 
-  def orphanDot: Int     = { 9. }        // line 12: ident expected
+  def zeroOfNine: Int    = { 09 }        // line 12: no leading zero
 
-  def zeroOfNineDot: Int = { 09. }       // line 14: malformed integer, ident expected
+  def orphanDot: Int     = { 9. }        // line 14: ident expected
 
-  def noHexFloat: Double = { 0x1.2 }     // line 16: ';' expected but double literal found.
+  def zeroOfNineDot: Int = { 09. }       // line 16: malformed integer, ident expected
+
+  def noHexFloat: Double = { 0x1.2 }     // line 18: ';' expected but double literal found.
 
 }
 
 trait Braceless {
 
-  def missingHex: Int    = 0x            // line 22: was: not reported, taken as zero
+  def missingHex: Int    = 0x            // line 24: was: not reported, taken as zero
 
-  def leadingZeros: Int  = 01            // line 24: no leading zero
+  def missingBin: Int    = 0b            // line 26: missing integer number
 
-  def tooManyZeros: Int  = 00            // line 26: no leading zero
+  def leadingZeros: Int  = 01            // line 28: no leading zero
 
-  def zeroOfNine: Int    = 09            // line 28: no leading zero
+  def tooManyZeros: Int  = 00            // line 30: no leading zero
 
-  def orphanDot: Int     = 9.            // line 30: ident expected
+  def zeroOfNine: Int    = 09            // line 32: no leading zero
 
-  def zeroOfNineDot: Int = 09.           // line 32: malformed integer, ident expected
+  def orphanDot: Int     = 9.            // line 34: ident expected
 
-  def noHexFloat: Double = 0x1.2         // line 34: ';' expected but double literal found.
+  def zeroOfNineDot: Int = 09.           // line 36: malformed integer, ident expected
+
+  def noHexFloat: Double = 0x1.2         // line 38: ';' expected but double literal found.
 }
 
 trait MoreSadness {
