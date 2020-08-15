@@ -34,10 +34,4 @@ trait SeqSet[A]
   override def iterableFactory: IterableFactory[SeqSet] = SeqSet
 }
 
-object SeqSet extends IterableFactory[SeqSet] {
-  def from[A](source: IterableOnce[A]): SeqSet[A] = ???
-
-  def empty[A]: SeqSet[A] = ???
-
-  def newBuilder[A]: mutable.Builder[A, SeqSet[A]] = ???
-}
+object SeqSet extends IterableFactory.Delegate[SeqSet](SeqSetFromMap(SeqMap))
