@@ -14,6 +14,7 @@ package scala
 package collection
 package mutable
 
+import scala.collection.SetFromMapOps.WrappedMap
 import scala.collection.generic.DefaultSerializable
 
 trait SetFromMapOps[A, +MM[K, V] <: MapOps[K, V, MM, MM[K, V]], +CC[_], +C <: SetFromMapOps[A, MM, CC, C]]
@@ -25,9 +26,19 @@ trait SetFromMapOps[A, +MM[K, V] <: MapOps[K, V, MM, MM[K, V]], +CC[_], +C <: Se
 
   override def add(elem: A): Boolean = underlying.put(elem, ()).isEmpty
 
+  override def addAll(xs: IterableOnce[A]): this.type =
+    xs match {
+      case coll: WrappedMap[A] =>
+        underlying.addAll(coll.underlying)
+        this
+      case coll => super.addAll(coll)
+    }
+
   def subtractOne(elem: A): this.type = { underlying.subtractOne(elem); this }
 
   override def remove(elem: A): Boolean = underlying.remove(elem).isDefined
+
+  override def subtractAll(xs: IterableOnce[A]): this.type = { underlying.subtractAll(xs); this }
 }
 
 @SerialVersionUID(3L)
