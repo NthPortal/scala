@@ -12,10 +12,10 @@
 
 package scala
 package collection
-package immutable
+package mutable
 
 /**
- * A generic trait for ordered immutable sets. Concrete classes have to provide
+ * A generic trait for ordered mutable sets. Concrete classes have to provide
  * functionality for the abstract methods in `SeqSet`.
  *
  * Note that when checking for equality [[SeqSet]] does not take into account
@@ -23,8 +23,8 @@ package immutable
  *
  * @tparam A the type of the values contained in this linked set.
  *
- * @define coll immutable seq set
- * @define Coll `immutable.SeqSet`
+ * @define coll mutable seq set
+ * @define Coll `mutable.SeqSet`
  */
 trait SeqSet[A]
   extends Set[A]
