@@ -19,8 +19,6 @@ class SetFromMap[A](private val underlying: Map[A, Unit])
   with SetOps[A, SetFromMap, SetFromMap[A]]
   with IterableFactoryDefaults[A, SetFromMap]
   with Serializable { // TODO: fix serialization
-  import SetFromMap.sfm
-
   override def iterableFactory: IterableFactory[SetFromMap] = SetFromMap.fromMap(underlying.mapFactory)
 
   def contains(elem: A): Boolean = underlying contains elem
