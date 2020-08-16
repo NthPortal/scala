@@ -18,7 +18,7 @@ import scala.collection.generic.DefaultSerializable
 @SerialVersionUID(3L)
 class SetFromMap[A](protected[collection] val underlying: Map[A, Unit])
   extends AbstractSet[A]
-    with SetFromMapOps.Unknown[A, Map, SetFromMap, SetFromMap[A]]
+    with SetFromMapOps.Unknown[A, SetFromMap, SetFromMap[A]]
     with IterableFactoryDefaults[A, SetFromMap]
     with DefaultSerializable {
   override def iterableFactory: IterableFactory[SetFromMap] =
@@ -39,7 +39,7 @@ object SetFromMap {
 class SeqSetFromMap[A](protected[collection] val underlying: SeqMap[A, Unit])
   extends AbstractSet[A]
     with SeqSet[A]
-    with SetFromMapOps.Unknown[A, SeqMap, SeqSetFromMap, SeqSetFromMap[A]]
+    with SetFromMapOps.Unknown[A, SeqSetFromMap, SeqSetFromMap[A]]
     with IterableFactoryDefaults[A, SeqSetFromMap]
     with DefaultSerializable {
   override def iterableFactory: IterableFactory[SeqSetFromMap] =
@@ -59,8 +59,8 @@ object SeqSetFromMap {
 @SerialVersionUID(3L)
 class SortedSetFromMap[A](protected[collection] val underlying: SortedMap[A, Unit])(implicit val ordering: Ordering[A])
   extends AbstractSet[A]
-    with SetFromMapOps.Unknown[A, Map, Set, SortedSetFromMap[A]]
-    with SetFromMapOps.Sorted[A, SortedMap, SortedSetFromMap, SortedSetFromMap[A]]
+    with SetFromMapOps.Unknown[A, Set, SortedSetFromMap[A]]
+    with SetFromMapOps.Sorted[A, SortedSetFromMap, SortedSetFromMap[A]]
     with SortedSet[A]
     with SortedSetOps[A, SortedSetFromMap, SortedSetFromMap[A]]
     with IterableFactoryDefaults[A, Set]

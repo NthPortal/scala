@@ -21,7 +21,7 @@ class SetFromMap[A](protected[collection] val underlying: Map[A, Unit],
                     override val iterableFactory: IterableFactory[SetFromMap])
   extends mutable.AbstractSet[A]
     with Set[A]
-    with mutable.SetFromMapOps[A, Map, SetFromMap, SetFromMap[A]]
+    with mutable.SetFromMapOps[A, SetFromMap, SetFromMap[A]]
     with IterableFactoryDefaults[A, SetFromMap]
     with DefaultSerializable
 

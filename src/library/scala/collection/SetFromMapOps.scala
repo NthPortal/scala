@@ -15,11 +15,11 @@ package collection
 
 import scala.collection.SetFromMapOps.WrappedMap
 
-trait SetFromMapOps[A, +MM[K, V] <: MapOps[K, V, MM, _], +CC[_], +C <: SetFromMapOps[A, MM, CC, C]]
+trait SetFromMapOps[A, +CC[_], +C <: SetFromMapOps[A, CC, C]]
   extends SetOps[A, CC, C]
     with WrappedMap[A]
     with Serializable {
-  protected[collection] val underlying: MM[A, Unit]
+  protected[collection] val underlying: Map[A, Unit]
 
   def contains(elem: A): Boolean = underlying contains elem
 
@@ -33,18 +33,18 @@ object SetFromMapOps {
   }
 
   // unknown whether mutable or immutable
-  trait Unknown[A, +MM[K, V] <: MapOps[K, V, MM, _], +CC[_], +C <: SetFromMapOps[A, MM, CC, C]]
-    extends SetFromMapOps[A, MM, CC, C] {
+  trait Unknown[A, +CC[_], +C <: SetFromMapOps[A, CC, C]]
+    extends SetFromMapOps[A, CC, C] {
     def diff(that: Set[A]): C =
       toIterable
         .foldLeft(newSpecificBuilder)((b, elem) => if (that contains elem) b else b += elem)
         .result()
   }
 
-  trait Sorted[A, +MM[K, V] <: SortedMap[K, V], +CC[X] <: SortedSet[X], +C <: SetFromMapOps[A, Map, Set, C] with SortedSetOps[A, CC, C]]
-    extends SetFromMapOps[A, Map, Set, C]
+  trait Sorted[A, +CC[X] <: SortedSet[X], +C <: SetFromMapOps[A, Set, C] with SortedSetOps[A, CC, C]]
+    extends SetFromMapOps[A, Set, C]
       with SortedSetOps[A, CC, C] {
-    override protected[collection] val underlying: MM[A, Unit]
+    override protected[collection] val underlying: SortedMap[A, Unit]
 
     def iteratorFrom(start: A): Iterator[A] = underlying.keysIteratorFrom(start)
   }

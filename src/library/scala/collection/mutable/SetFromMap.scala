@@ -17,9 +17,11 @@ package mutable
 import scala.collection.SetFromMapOps.WrappedMap
 import scala.collection.generic.DefaultSerializable
 
-trait SetFromMapOps[A, +MM[K, V] <: MapOps[K, V, MM, MM[K, V]], +CC[_], +C <: SetFromMapOps[A, MM, CC, C]]
+trait SetFromMapOps[A, +CC[_], +C <: SetFromMapOps[A, CC, C]]
   extends SetOps[A, CC, C]
-    with collection.SetFromMapOps[A, MM, CC, C] {
+    with collection.SetFromMapOps[A, CC, C] {
+  protected[collection] val underlying: Map[A, Unit]
+
   def clear(): Unit = underlying.clear()
 
   def addOne(elem: A): this.type = { underlying.update(elem, ()); this }
@@ -44,7 +46,7 @@ trait SetFromMapOps[A, +MM[K, V] <: MapOps[K, V, MM, MM[K, V]], +CC[_], +C <: Se
 @SerialVersionUID(3L)
 class SetFromMap[A](protected[collection] val underlying: Map[A, Unit])
   extends AbstractSet[A]
-    with SetFromMapOps[A, Map, SetFromMap, SetFromMap[A]]
+    with SetFromMapOps[A, SetFromMap, SetFromMap[A]]
     with IterableFactoryDefaults[A, SetFromMap]
     with DefaultSerializable {
   override def iterableFactory: IterableFactory[SetFromMap] = SetFromMap(underlying.mapFactory)
@@ -64,7 +66,7 @@ object SetFromMap {
 class SeqSetFromMap[A](protected[collection] val underlying: Map[A, Unit])
   extends AbstractSet[A]
     with SeqSet[A]
-    with SetFromMapOps[A, Map, SeqSetFromMap, SeqSetFromMap[A]]
+    with SetFromMapOps[A, SeqSetFromMap, SeqSetFromMap[A]]
     with IterableFactoryDefaults[A, SeqSetFromMap]
     with DefaultSerializable {
   override def iterableFactory: IterableFactory[SeqSetFromMap] = SeqSetFromMap(underlying.mapFactory)
@@ -83,8 +85,8 @@ object SeqSetFromMap {
 @SerialVersionUID(3L)
 class SortedSetFromMap[A](protected[collection] val underlying: SortedMap[A, Unit])(implicit val ordering: Ordering[A])
   extends AbstractSet[A]
-    with SetFromMapOps[A, Map, Set, SortedSetFromMap[A]]
-    with SetFromMapOps.Sorted[A, SortedMap, SortedSetFromMap, SortedSetFromMap[A]]
+    with SetFromMapOps[A, Set, SortedSetFromMap[A]]
+    with SetFromMapOps.Sorted[A, SortedSetFromMap, SortedSetFromMap[A]]
     with SortedSet[A]
     with SortedSetOps[A, SortedSetFromMap, SortedSetFromMap[A]]
     with IterableFactoryDefaults[A, Set]

@@ -14,18 +14,19 @@ package scala
 package collection
 package immutable
 
-import scala.annotation.unchecked.{uncheckedVariance => uV}
 import scala.collection.generic.DefaultSerializable
 import scala.collection.SetFromMapOps.WrappedMap
 
-trait SetFromMapOps[A, +MM[K, +V] <: MapOps[K, V, MM, MM[K, V]], +CC[_], +C <: SetFromMapOps[A, MM, CC, C]]
+trait SetFromMapOps[A, +CC[_], +C <: SetFromMapOps[A, CC, C]]
   extends SetOps[A, CC, C]
-    with collection.SetFromMapOps[A, MM, CC, C]
+    with collection.SetFromMapOps[A, CC, C]
 
 object SetFromMapOps {
-  trait Unsorted[A, +MM[K, +V] <: MapOps[K, V, MM, MM[K, V]], +CC[_], +C <: Unsorted[A, MM, CC, C]]
-    extends SetFromMapOps[A, MM, CC, C] {
-    protected[this] def fromMap(m: MM[A, Unit] @uV): C
+  trait Unsorted[A, +MM[K, +V] <: collection.Map[K, V] with MapOps[K, V, MM, MM[K, V]], +CC[_], +C <: Unsorted[A, MM, CC, C]]
+    extends SetFromMapOps[A, CC, C] {
+    protected[collection] val underlying: MM[A, Unit]
+
+    protected[this] def fromMap(m: MM[A, Unit]): C
 
     def incl(elem: A): C = fromMap(underlying.updated(elem, ()))
 
@@ -91,8 +92,8 @@ object SeqSetFromMap {
 @SerialVersionUID(3L)
 class SortedSetFromMap[A](protected[collection] val underlying: SortedMap[A, Unit])(implicit val ordering: Ordering[A])
   extends AbstractSet[A]
-    with SetFromMapOps[A, Map, Set, SortedSetFromMap[A]]
-    with collection.SetFromMapOps.Sorted[A, SortedMap, SortedSetFromMap, SortedSetFromMap[A]]
+    with SetFromMapOps[A, Set, SortedSetFromMap[A]]
+    with collection.SetFromMapOps.Sorted[A, SortedSetFromMap, SortedSetFromMap[A]]
     with SortedSet[A]
     with SortedSetOps[A, SortedSetFromMap, SortedSetFromMap[A]]
     with IterableFactoryDefaults[A, Set]
