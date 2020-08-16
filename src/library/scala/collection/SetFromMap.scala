@@ -12,46 +12,21 @@
 
 package scala
 package collection
-package mutable
 
-import scala.collection.SetFromMapOps.WrappedMap
 import scala.collection.generic.DefaultSerializable
-
-trait SetFromMapOps[A, +MM[K, V] <: MapOps[K, V, MM, MM[K, V]], +CC[_], +C <: SetFromMapOps[A, MM, CC, C]]
-  extends SetOps[A, CC, C]
-    with collection.SetFromMapOps[A, MM, CC, C] {
-  def clear(): Unit = underlying.clear()
-
-  def addOne(elem: A): this.type = { underlying.update(elem, ()); this }
-
-  override def add(elem: A): Boolean = underlying.put(elem, ()).isEmpty
-
-  override def addAll(xs: IterableOnce[A]): this.type =
-    xs match {
-      case coll: WrappedMap[A] =>
-        underlying.addAll(coll.underlying)
-        this
-      case coll => super.addAll(coll)
-    }
-
-  def subtractOne(elem: A): this.type = { underlying.subtractOne(elem); this }
-
-  override def remove(elem: A): Boolean = underlying.remove(elem).isDefined
-
-  override def subtractAll(xs: IterableOnce[A]): this.type = { underlying.subtractAll(xs); this }
-}
 
 @SerialVersionUID(3L)
 class SetFromMap[A](protected[collection] val underlying: Map[A, Unit])
   extends AbstractSet[A]
-    with SetFromMapOps[A, Map, SetFromMap, SetFromMap[A]]
+    with SetFromMapOps.Unknown[A, Map, SetFromMap, SetFromMap[A]]
     with IterableFactoryDefaults[A, SetFromMap]
     with DefaultSerializable {
-  override def iterableFactory: IterableFactory[SetFromMap] = SetFromMap(underlying.mapFactory)
+  override def iterableFactory: IterableFactory[SetFromMap] =
+    new SetFromMap.WrapperFactory(underlying.mapFactory)
 }
 
 object SetFromMap {
-  def apply(factory: MapFactory[Map]): IterableFactory[SetFromMap] = new WrapperFactory(factory)
+  def apply(factory: MapFactory[Map]): IterableFactory[Set] = new WrapperFactory(factory)
 
   @SerialVersionUID(3L)
   private class WrapperFactory(mf: MapFactory[Map]) extends SetFromMapFactory[Map, SetFromMap](mf) {
@@ -61,21 +36,22 @@ object SetFromMap {
 }
 
 @SerialVersionUID(3L)
-class SeqSetFromMap[A](protected[collection] val underlying: Map[A, Unit])
+class SeqSetFromMap[A](protected[collection] val underlying: SeqMap[A, Unit])
   extends AbstractSet[A]
     with SeqSet[A]
-    with SetFromMapOps[A, Map, SeqSetFromMap, SeqSetFromMap[A]]
+    with SetFromMapOps.Unknown[A, SeqMap, SeqSetFromMap, SeqSetFromMap[A]]
     with IterableFactoryDefaults[A, SeqSetFromMap]
     with DefaultSerializable {
-  override def iterableFactory: IterableFactory[SeqSetFromMap] = SeqSetFromMap(underlying.mapFactory)
+  override def iterableFactory: IterableFactory[SeqSetFromMap] =
+    new SeqSetFromMap.WrapperFactory(underlying.mapFactory)
 }
 
 object SeqSetFromMap {
-  def apply(factory: MapFactory[Map]): IterableFactory[SeqSetFromMap] = new WrapperFactory(factory)
+  def apply(factory: MapFactory[SeqMap]): IterableFactory[SeqSet] = new WrapperFactory(factory)
 
   @SerialVersionUID(3L)
-  private class WrapperFactory(mf: MapFactory[Map]) extends SetFromMapFactory[Map, SeqSetFromMap](mf) {
-    protected[this] def fromMap[A](map: Map[A, Unit]): SeqSetFromMap[A] =
+  private class WrapperFactory(mf: MapFactory[SeqMap]) extends SetFromMapFactory[SeqMap, SeqSetFromMap](mf) {
+    protected[this] def fromMap[A](map: SeqMap[A, Unit]): SeqSetFromMap[A] =
       new SeqSetFromMap(map)
   }
 }
@@ -83,7 +59,7 @@ object SeqSetFromMap {
 @SerialVersionUID(3L)
 class SortedSetFromMap[A](protected[collection] val underlying: SortedMap[A, Unit])(implicit val ordering: Ordering[A])
   extends AbstractSet[A]
-    with SetFromMapOps[A, Map, Set, SortedSetFromMap[A]]
+    with SetFromMapOps.Unknown[A, Map, Set, SortedSetFromMap[A]]
     with SetFromMapOps.Sorted[A, SortedMap, SortedSetFromMap, SortedSetFromMap[A]]
     with SortedSet[A]
     with SortedSetOps[A, SortedSetFromMap, SortedSetFromMap[A]]

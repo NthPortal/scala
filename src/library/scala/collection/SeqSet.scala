@@ -31,4 +31,7 @@ trait SeqSet[A]
   override def iterableFactory: IterableFactory[SeqSet] = SeqSet
 }
 
-object SeqSet extends IterableFactory.Delegate[SeqSet](immutable.SeqSet)
+object SeqSet extends IterableFactory.Delegate[SeqSet](immutable.SeqSet) {
+  // TODO: migrate?
+  def fromMap(factory: MapFactory[SeqMap]): IterableFactory[SeqSet] = SeqSetFromMap(factory)
+}

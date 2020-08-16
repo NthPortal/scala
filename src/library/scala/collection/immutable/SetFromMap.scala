@@ -92,6 +92,7 @@ object SeqSetFromMap {
 class SortedSetFromMap[A](protected[collection] val underlying: SortedMap[A, Unit])(implicit val ordering: Ordering[A])
   extends AbstractSet[A]
     with SetFromMapOps[A, Map, Set, SortedSetFromMap[A]]
+    with collection.SetFromMapOps.Sorted[A, SortedMap, SortedSetFromMap, SortedSetFromMap[A]]
     with SortedSet[A]
     with SortedSetOps[A, SortedSetFromMap, SortedSetFromMap[A]]
     with IterableFactoryDefaults[A, Set]
@@ -117,8 +118,6 @@ class SortedSetFromMap[A](protected[collection] val underlying: SortedMap[A, Uni
   override def excl(elem: A): SortedSetFromMap[A] = ssfm(underlying removed elem)
 
   override def removedAll(that: IterableOnce[A]): SortedSetFromMap[A] = ssfm(underlying removedAll that)
-
-  def iteratorFrom(start: A): Iterator[A] = underlying.keysIteratorFrom(start)
 
   def rangeImpl(from: Option[A], until: Option[A]): SortedSetFromMap[A] = ssfm(underlying.rangeImpl(from, until))
 }

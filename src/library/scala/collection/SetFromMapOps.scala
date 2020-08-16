@@ -31,6 +31,23 @@ object SetFromMapOps {
   sealed trait WrappedMap[A] extends IterableOnce[A] {
     protected[collection] val underlying: IterableOnce[(A, Unit)]
   }
+
+  // unknown whether mutable or immutable
+  trait Unknown[A, +MM[K, V] <: MapOps[K, V, MM, _], +CC[_], +C <: SetFromMapOps[A, MM, CC, C]]
+    extends SetFromMapOps[A, MM, CC, C] {
+    def diff(that: Set[A]): C =
+      toIterable
+        .foldLeft(newSpecificBuilder)((b, elem) => if (that contains elem) b else b += elem)
+        .result()
+  }
+
+  trait Sorted[A, +MM[K, V] <: SortedMap[K, V], +CC[X] <: SortedSet[X], +C <: SetFromMapOps[A, Map, Set, C] with SortedSetOps[A, CC, C]]
+    extends SetFromMapOps[A, Map, Set, C]
+      with SortedSetOps[A, CC, C] {
+    override protected[collection] val underlying: MM[A, Unit]
+
+    def iteratorFrom(start: A): Iterator[A] = underlying.keysIteratorFrom(start)
+  }
 }
 
 abstract class SetFromMapFactory[+MM[K, V] <: Map[K, V], +CC[A] <: WrappedMap[A]](mf: MapFactory[MM])
