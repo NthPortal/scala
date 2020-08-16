@@ -34,4 +34,5 @@ trait Set[A] extends scala.collection.mutable.Set[A]
 object Set extends IterableFactory.Delegate[Set](SetFromMap(TrieMap)) {
   // TODO: migrate?
   def fromMap(factory: MapFactory[Map]): IterableFactory[Set] = SetFromMap(factory)
+  def fromMap[A](map: Map[A, Unit]): Set[A] = SetFromMap(map)
 }

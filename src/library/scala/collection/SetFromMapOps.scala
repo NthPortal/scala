@@ -114,3 +114,17 @@ abstract class SortedSetFromMapFactory[+MM[K, V] <: SortedMap[K, V], +CC[A] <: W
     override def sizeHint(size: Int): Unit = b.sizeHint(size)
   }
 }
+
+sealed abstract class SetFromMapCreator[MM[K, V] <: Map[K, V], +CC[A] <: Set[A]] {
+  def apply[A](map: MM[A, Unit]): CC[A]
+}
+
+abstract class SetFromMapMetaFactory[MM[K, V] <: Map[K, V], +CC[A] <: Set[A]]
+  extends SetFromMapCreator[MM, CC] {
+  def apply(factory: MapFactory[MM]): IterableFactory[CC]
+}
+
+abstract class SortedSetFromMapMetaFactory[MM[K, V] <: SortedMap[K, V], +CC[A] <: SortedSet[A]]
+  extends SetFromMapCreator[MM, CC] {
+  def apply(factory: SortedMapFactory[MM]): SortedIterableFactory[CC]
+}

@@ -25,8 +25,16 @@ class SetFromMap[A](protected[collection] val underlying: Map[A, Unit],
     with IterableFactoryDefaults[A, SetFromMap]
     with DefaultSerializable
 
-object SetFromMap {
+object SetFromMap extends SetFromMapMetaFactory[Map, Set] {
   def apply(factory: MapFactory[Map]): IterableFactory[SetFromMap] = new WrapperFactory(factory)
+  def apply[A](map: Map[A, Unit]): Set[A] = {
+    val factory = map.mapFactory
+    val safeFactory = factory.empty match {
+      case _: Map[_, _] => factory.asInstanceOf[MapFactory[Map]] // trust as concurrent
+      case _            => TrieMap
+    }
+    new SetFromMap(map, apply(safeFactory))
+  }
 
   @SerialVersionUID(3L)
   private class WrapperFactory(mf: MapFactory[Map]) extends SetFromMapFactory[Map, SetFromMap](mf) {

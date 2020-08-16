@@ -25,8 +25,9 @@ class SetFromMap[A](protected[collection] val underlying: Map[A, Unit])
     new SetFromMap.WrapperFactory(underlying.mapFactory)
 }
 
-object SetFromMap {
+object SetFromMap extends SetFromMapMetaFactory[Map, Set] {
   def apply(factory: MapFactory[Map]): IterableFactory[Set] = new WrapperFactory(factory)
+  def apply[A](map: Map[A, Unit]): Set[A] = new SetFromMap(map)
 
   @SerialVersionUID(3L)
   private class WrapperFactory(mf: MapFactory[Map]) extends SetFromMapFactory[Map, SetFromMap](mf) {
@@ -46,8 +47,9 @@ class SeqSetFromMap[A](protected[collection] val underlying: SeqMap[A, Unit])
     new SeqSetFromMap.WrapperFactory(underlying.mapFactory)
 }
 
-object SeqSetFromMap {
+object SeqSetFromMap extends SetFromMapMetaFactory[SeqMap, SeqSet] {
   def apply(factory: MapFactory[SeqMap]): IterableFactory[SeqSet] = new WrapperFactory(factory)
+  def apply[A](map: SeqMap[A, Unit]): SeqSet[A] = new SeqSetFromMap(map)
 
   @SerialVersionUID(3L)
   private class WrapperFactory(mf: MapFactory[SeqMap]) extends SetFromMapFactory[SeqMap, SeqSetFromMap](mf) {
@@ -76,9 +78,10 @@ class SortedSetFromMap[A](protected[collection] val underlying: SortedMap[A, Uni
     new SortedSetFromMap(underlying.rangeImpl(from, until))
 }
 
-object SortedSetFromMap {
+object SortedSetFromMap extends SortedSetFromMapMetaFactory[SortedMap, SortedSet] {
   def apply(factory: SortedMapFactory[SortedMap]): SortedIterableFactory[SortedSet] =
     new WrapperFactory(factory)
+  def apply[A](map: SortedMap[A, Unit]): SortedSet[A] = new SortedSetFromMap(map)(map.ordering)
 
   @SerialVersionUID(3L)
   private final class WrapperFactory(mf: SortedMapFactory[SortedMap])
