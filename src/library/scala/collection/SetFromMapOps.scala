@@ -22,8 +22,16 @@ trait SetFromMapOps[A, +CC[_], +C <: SetFromMapOps[A, CC, C]]
   protected[collection] val underlying: Map[A, Unit]
 
   def contains(elem: A): Boolean = underlying contains elem
-
   def iterator: Iterator[A] = underlying.keysIterator
+
+  override def isEmpty: Boolean = underlying.isEmpty
+  override def size: Int = underlying.size
+  override def knownSize: Int = underlying.knownSize
+
+  override def head: A = underlying.head._1
+  override def headOption: Option[A] = underlying.headOption.map(_._1)
+  override def last: A = underlying.last._1
+  override def lastOption: Option[A] = underlying.lastOption.map(_._1)
 }
 
 object SetFromMapOps {
@@ -47,6 +55,13 @@ object SetFromMapOps {
     override protected[collection] val underlying: SortedMap[A, Unit]
 
     def iteratorFrom(start: A): Iterator[A] = underlying.keysIteratorFrom(start)
+
+    override def head: A = underlying.firstKey
+    override def firstKey: A = underlying.firstKey
+    override def headOption: Option[A] = underlying.headOption.map(_._1)
+    override def last: A = underlying.lastKey
+    override def lastKey: A = underlying.lastKey
+    override def lastOption: Option[A] = underlying.lastOption.map(_._1)
   }
 }
 

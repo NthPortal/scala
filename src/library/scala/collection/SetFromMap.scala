@@ -21,6 +21,8 @@ class SetFromMap[A](protected[collection] val underlying: Map[A, Unit])
     with SetFromMapOps.Unknown[A, SetFromMap, SetFromMap[A]]
     with IterableFactoryDefaults[A, SetFromMap]
     with DefaultSerializable {
+  override protected[this] def className: String = "SetFromMap"
+
   override def iterableFactory: IterableFactory[SetFromMap] =
     new SetFromMap.WrapperFactory(underlying.mapFactory)
 }
@@ -43,6 +45,8 @@ class SeqSetFromMap[A](protected[collection] val underlying: SeqMap[A, Unit])
     with SetFromMapOps.Unknown[A, SeqSetFromMap, SeqSetFromMap[A]]
     with IterableFactoryDefaults[A, SeqSetFromMap]
     with DefaultSerializable {
+  override protected[this] def className: String = "SeqSetFromMap"
+
   override def iterableFactory: IterableFactory[SeqSetFromMap] =
     new SeqSetFromMap.WrapperFactory(underlying.mapFactory)
 }
@@ -68,6 +72,8 @@ class SortedSetFromMap[A](protected[collection] val underlying: SortedMap[A, Uni
     with IterableFactoryDefaults[A, Set]
     with SortedSetFactoryDefaults[A, SortedSetFromMap, Set]
     with DefaultSerializable {
+  override protected[this] def className: String = "SortedSetFromMap"
+
   override def iterableFactory: IterableFactory[Set] =
     SetFromMap(underlying.mapFactory)
 

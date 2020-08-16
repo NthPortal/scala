@@ -23,7 +23,9 @@ class SetFromMap[A](protected[collection] val underlying: Map[A, Unit],
     with Set[A]
     with mutable.SetFromMapOps[A, SetFromMap, SetFromMap[A]]
     with IterableFactoryDefaults[A, SetFromMap]
-    with DefaultSerializable
+    with DefaultSerializable {
+  override protected[this] def className: String = "SetFromMap"
+}
 
 object SetFromMap extends SetFromMapMetaFactory[Map, Set] {
   def apply(factory: MapFactory[Map]): IterableFactory[SetFromMap] = new WrapperFactory(factory)
