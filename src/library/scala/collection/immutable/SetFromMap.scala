@@ -15,7 +15,7 @@ package collection
 package immutable
 
 import scala.collection.generic.DefaultSerializable
-import scala.collection.SetFromMapOps.WrappedMap
+
 trait SetFromMapOps[
   A,
   +MM[K, +V] <: MapOps[K, V, MM, _],
@@ -38,12 +38,6 @@ object SetFromMapOps {
     extends SetFromMapOps[A, MM, MM[A, Unit], CC, CC[A]]
       with collection.SetFromMapOps.Unsorted[A, MM, CC] {
     def incl(elem: A): CC[A] = fromMap(underlying.updated(elem, ()))
-    override def concat(that: IterableOnce[A]): CC[A] = fromMap {
-      that match {
-        case coll: WrappedMap[A] => underlying concat coll.underlying
-        case coll                => underlying concat coll.iterator.map((_, ()))
-      }
-    }
   }
 }
 
@@ -121,16 +115,10 @@ class SortedSetFromMap[A](protected[collection] val underlying: SortedMap[A, Uni
     new SortedSetFromMap.WrapperFactory(underlying.sortedMapFactory)
 
   override def incl(elem: A): SortedSetFromMap[A] = ssfm(underlying.updated(elem, ()))
-  override def concat(that: IterableOnce[A]): SortedSetFromMap[A] = ssfm {
-    that match {
-      case coll: WrappedMap[A] => underlying concat coll.underlying
-      case coll                => underlying concat coll.iterator.map((_, ()))
-    }
-  }
 }
 
 object SortedSetFromMap extends SortedSetFromMapMetaFactory[SortedMap, SortedSet] {
-  @inline private def ssfm[B: Ordering](map: SortedMap[B, Unit]): SortedSetFromMap[B] =
+  @inline private def ssfm[A: Ordering](map: SortedMap[A, Unit]): SortedSetFromMap[A] =
     new SortedSetFromMap(map)
 
   def apply(factory: SortedMapFactory[SortedMap]): SortedIterableFactory[SortedSet] =

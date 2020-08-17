@@ -14,6 +14,7 @@ package scala
 package collection
 
 import scala.collection.SetFromMapOps.WrappedMap
+import scala.reflect.ClassTag
 
 trait SetFromMapOps[
   A,
@@ -30,7 +31,14 @@ trait SetFromMapOps[
   protected[this] def fromMap[B](m: MM[B, Unit]): CC[B]
   protected[this] def fromSpecificMap(m: M): C
 
-  protected[this] def adapted[R](f: A => R): ((A, Unit)) => R = { case (elem, _) => f(elem) }
+  // methods for adapting functions for a set to functions for a map
+  @inline protected[this] def adapted[B](f: A => B): ((A, Unit)) => B = { case (elem, _) => f(elem) }
+  @inline protected[this] def adaptedPF[B](pf: PartialFunction[A, B]): PartialFunction[(A, Unit), B] =
+    adapted(pf.lift).unlift
+  @inline protected[this] def adaptedTuple[B](f: A => B): ((A, Unit)) => (B, Unit) =
+    { case (elem, _) => f(elem) -> () }
+  @inline protected[this] def adaptedTuplePF[B](pf: PartialFunction[A, B]): PartialFunction[(A, Unit), (B, Unit)] =
+    adapted(pf.lift).andThen(_.map(_ -> ())).unlift
 
   def contains(elem: A): Boolean = underlying contains elem
   def iterator: Iterator[A] = underlying.keysIterator
@@ -44,7 +52,81 @@ trait SetFromMapOps[
   override def last: A = underlying.last._1
   override def lastOption: Option[A] = underlying.lastOption.map(_._1)
 
-  override def tapEach[U](f: A => U): C = fromSpecificMap(underlying.tapEach(adapted(f)))
+  // TODO: fromSpecific, newSpecificBuilder
+
+  override def collect[B](pf: PartialFunction[A, B]): CC[B] = fromMap(underlying collect adaptedTuplePF(pf))
+  override def collectFirst[B](pf: PartialFunction[A, B]): Option[B] = underlying collectFirst adaptedPF(pf)
+  override def copyToArray[B >: A](xs: Array[B], start: Int): Int = underlying.keySet.copyToArray(xs, start)
+  override def copyToArray[B >: A](xs: Array[B], start: Int, len: Int): Int =
+    underlying.keySet.copyToArray(xs, start, len)
+  override def count(p: A => Boolean): Int = underlying.keySet count p
+  override def drop(n: Int): C = fromSpecificMap(underlying drop n)
+  override def dropRight(n: Int): C = fromSpecificMap(underlying dropRight n)
+  override def dropWhile(p: A => Boolean): C = fromSpecificMap(underlying dropWhile adapted(p))
+  override def exists(p: A => Boolean): Boolean = underlying exists adapted(p)
+  override def filter(pred: A => Boolean): C = fromSpecificMap(underlying filter adapted(pred))
+  override def filterNot(pred: A => Boolean): C = fromSpecificMap(underlying filterNot adapted(pred))
+  override def find(p: A => Boolean): Option[A] = underlying.keySet find p
+  override def flatMap[B](f: A => IterableOnce[B]): CC[B] = fromMap {
+    underlying flatMap {
+      case (elem, _) => f(elem) match {
+        case that: WrappedMap[B] => that.underlying
+        case that => that.iterator map { _ -> () }
+      }
+    }
+  }
+  override def flatten[B](implicit asIterable: A => IterableOnce[B]): CC[B] = flatMap(asIterable)
+  override def foldLeft[B](z: B)(op: (B, A) => B): B = underlying.keySet.foldLeft(z)(op)
+  override def foldRight[B](z: B)(op: (A, B) => B): B = underlying.keySet.foldRight(z)(op)
+  override def forall(p: A => Boolean): Boolean = underlying.keySet forall p
+  override def foreach[U](f: A => U): Unit = underlying.keySet foreach f
+  override def groupMapReduce[K, B](key: A => K)(f: A => B)(reduce: (B, B) => B): immutable.Map[K, B] =
+    underlying.keySet.groupMapReduce(key)(f)(reduce)
+  @deprecated("Check .knownSize instead of .hasDefiniteSize for more actionable information (see scaladoc for details)", "2.13.0")
+  override def hasDefiniteSize: Boolean = underlying.hasDefiniteSize
+  override def map[B](f: A => B): CC[B] = fromMap(underlying map adaptedTuple(f))
+  override def max[B >: A](implicit ord: Ordering[B]): A = underlying.keySet.max[B]
+  override def maxOption[B >: A](implicit ord: Ordering[B]): Option[A] = underlying.keySet.maxOption[B]
+  override def maxBy[B](f: A => B)(implicit cmp: Ordering[B]): A = underlying.keySet maxBy f
+  override def maxByOption[B](f: A => B)(implicit cmp: Ordering[B]): Option[A] =
+    underlying.keySet maxByOption f
+  override def min[B >: A](implicit ord: Ordering[B]): A = underlying.keySet.min[B]
+  override def minOption[B >: A](implicit ord: Ordering[B]): Option[A] = underlying.keySet.minOption[B]
+  override def minBy[B](f: A => B)(implicit cmp: Ordering[B]): A = underlying.keySet minBy f
+  override def minByOption[B](f: A => B)(implicit cmp: Ordering[B]): Option[A] =
+    underlying.keySet minByOption f
+  override def partition(p: A => Boolean): (C, C) = {
+    val (a, b) = underlying partition adapted(p)
+    (fromSpecificMap(a), fromSpecificMap(b))
+  }
+  override def partitionMap[A1, A2](f: A => Either[A1, A2]): (CC[A1], CC[A2]) = {
+    val (a, b) = underlying partitionMap adapted(f)
+    (iterableFactory.from(a), iterableFactory.from(b))
+  }
+  override def reduceLeft[B >: A](op: (B, A) => B): B = underlying.keySet reduceLeft op
+  override def reduceLeftOption[B >: A](op: (B, A) => B): Option[B] = underlying.keySet reduceLeftOption op
+  override def reduceRight[B >: A](op: (A, B) => B): B = underlying.keySet reduceRight op
+  override def reduceRightOption[B >: A](op: (A, B) => B): Option[B] = underlying.keySet reduceRightOption op
+  override def scanLeft[B](z: B)(op: (B, A) => B): CC[B] =
+    iterableFactory.from(underlying.scanLeft(z)((acc, t) => op(acc, t._1)))
+  override def scanRight[B](z: B)(op: (A, B) => B): CC[B] =
+    iterableFactory.from(underlying.scanRight(z)((t, acc) => op(t._1, acc)))
+  override def slice(from: Int, until: Int): C = fromSpecificMap(underlying.slice(from, until))
+  override def span(p: A => Boolean): (C, C) = {
+    val (a, b) = underlying span adapted(p)
+    (fromSpecificMap(a), fromSpecificMap(b))
+  }
+  override def splitAt(n: Int): (C, C) = {
+    val (a, b) = underlying splitAt n
+    (fromSpecificMap(a), fromSpecificMap(b))
+  }
+  override def stepper[S <: Stepper[_]](implicit shape: StepperShape[A, S]): S = underlying.keyStepper
+  override def take(n: Int): C = fromSpecificMap(underlying take n)
+  override def takeRight(n: Int): C = fromSpecificMap(underlying takeRight n)
+  override def takeWhile(p: A => Boolean): C = fromSpecificMap(underlying takeWhile adapted(p))
+  override def tapEach[U](f: A => U): C = fromSpecificMap(underlying tapEach adapted(f))
+  override def toArray[B >: A : ClassTag]: Array[B] = underlying.keySet.toArray[B]
+  override def view: View[A] = underlying.keySet.view
 }
 
 object SetFromMapOps {
@@ -71,6 +153,13 @@ object SetFromMapOps {
   trait Unsorted[A, +MM[K, V] <: MapOps[K, V, MM, MM[K, V]], +CC[X] <: Unsorted[X, MM, CC]]
     extends SetFromMapOps[A, MM, MM[A, Unit], CC, CC[A]] {
     protected[this] final def fromSpecificMap(m: MM[A, Unit]): CC[A] = fromMap(m)
+
+    override def concat(that: IterableOnce[A]): CC[A] = fromMap {
+      that match {
+        case coll: WrappedMap[A] => underlying concat coll.underlying
+        case coll                => underlying concat coll.iterator.map((_, ()))
+      }
+    }
   }
 
   trait Sorted[
@@ -99,6 +188,13 @@ object SetFromMapOps {
     override def last: A = underlying.lastKey
     override def lastKey: A = underlying.lastKey
     override def lastOption: Option[A] = underlying.lastOption.map(_._1)
+
+    override def concat(that: IterableOnce[A]): CC[A] = fromSortedMap {
+      that match {
+        case coll: WrappedMap[A] => underlying concat coll.underlying
+        case coll                => underlying concat coll.iterator.map((_, ()))
+      }
+    }
   }
 }
 
