@@ -17,17 +17,18 @@ package mutable
 import scala.collection.SetFromMapOps.WrappedMap
 import scala.collection.generic.DefaultSerializable
 
-trait SetFromMapOps[A, +CC[_], +C <: SetFromMapOps[A, CC, C]]
+trait SetFromMapOps[
+  A,
+  +MM[K, V] <: MapOps[K, V, MM, _],
+  +M <: MapOps[A, Unit, MM, M],
+  +CC[_],
+  +C <: SetFromMapOps[A, MM, M, CC, C]
+]
   extends SetOps[A, CC, C]
-    with collection.SetFromMapOps[A, CC, C] {
-  protected[collection] val underlying: Map[A, Unit]
-
+    with collection.SetFromMapOps[A, MM, M, CC, C] {
   def clear(): Unit = underlying.clear()
-
   def addOne(elem: A): this.type = { underlying.update(elem, ()); this }
-
   override def add(elem: A): Boolean = underlying.put(elem, ()).isEmpty
-
   override def addAll(xs: IterableOnce[A]): this.type =
     xs match {
       case coll: WrappedMap[A] =>
@@ -35,20 +36,22 @@ trait SetFromMapOps[A, +CC[_], +C <: SetFromMapOps[A, CC, C]]
         this
       case coll => super.addAll(coll)
     }
-
   def subtractOne(elem: A): this.type = { underlying.subtractOne(elem); this }
-
   override def remove(elem: A): Boolean = underlying.remove(elem).isDefined
-
   override def subtractAll(xs: IterableOnce[A]): this.type = { underlying.subtractAll(xs); this }
+
+  override def knownSize: Int = underlying.knownSize
 }
 
 @SerialVersionUID(3L)
 class SetFromMap[A](protected[collection] val underlying: Map[A, Unit])
   extends AbstractSet[A]
-    with SetFromMapOps[A, SetFromMap, SetFromMap[A]]
+    with SetFromMapOps[A, Map, Map[A, Unit], SetFromMap, SetFromMap[A]]
+    with SetFromMapOps.Unsorted[A, Map, SetFromMap]
     with IterableFactoryDefaults[A, SetFromMap]
     with DefaultSerializable {
+  protected[this] def fromMap[B](m: Map[B, Unit]): SetFromMap[B] = new SetFromMap(m)
+
   override protected[this] def className: String = "SetFromMap"
 
   override def iterableFactory: IterableFactory[SetFromMap] = SetFromMap(underlying.mapFactory)
@@ -69,9 +72,12 @@ object SetFromMap extends SetFromMapMetaFactory[Map, Set] {
 class SeqSetFromMap[A](protected[collection] val underlying: SeqMap[A, Unit])
   extends AbstractSet[A]
     with SeqSet[A]
-    with SetFromMapOps[A, SeqSetFromMap, SeqSetFromMap[A]]
+    with SetFromMapOps[A, SeqMap, SeqMap[A, Unit], SeqSetFromMap, SeqSetFromMap[A]]
+    with SetFromMapOps.Unsorted[A, SeqMap, SeqSetFromMap]
     with IterableFactoryDefaults[A, SeqSetFromMap]
     with DefaultSerializable {
+  protected[this] def fromMap[B](m: SeqMap[B, Unit]): SeqSetFromMap[B] = new SeqSetFromMap(m)
+
   override protected[this] def className: String = "SeqSetFromMap"
 
   override def iterableFactory: IterableFactory[SeqSetFromMap] = SeqSetFromMap(underlying.mapFactory)
@@ -91,23 +97,22 @@ object SeqSetFromMap extends SetFromMapMetaFactory[SeqMap, SeqSet] {
 @SerialVersionUID(3L)
 class SortedSetFromMap[A](protected[collection] val underlying: SortedMap[A, Unit])(implicit val ordering: Ordering[A])
   extends AbstractSet[A]
-    with SetFromMapOps[A, Set, SortedSetFromMap[A]]
-    with SetFromMapOps.Sorted[A, SortedSetFromMap, SortedSetFromMap[A]]
+    with SetFromMapOps[A, Map, SortedMap[A, Unit], Set, SortedSetFromMap[A]]
+    with SetFromMapOps.Sorted[A, SortedMap, Set, SortedSetFromMap]
     with SortedSet[A]
     with SortedSetOps[A, SortedSetFromMap, SortedSetFromMap[A]]
     with IterableFactoryDefaults[A, Set]
     with SortedSetFactoryDefaults[A, SortedSetFromMap, Set]
     with DefaultSerializable {
+  protected[this] def fromMap[B](m: Map[B, Unit]): SetFromMap[B] = new SetFromMap(m)
+  protected[this] def fromSortedMap[B: Ordering](m: SortedMap[B, Unit]): SortedSetFromMap[B] =
+    new SortedSetFromMap(m)
+
   override protected[this] def className: String = "SortedSetFromMap"
 
-  override def iterableFactory: IterableFactory[Set] =
-    SetFromMap(underlying.mapFactory)
-
+  override def iterableFactory: IterableFactory[SetFromMap] = SetFromMap(underlying.mapFactory)
   override def sortedIterableFactory: SortedIterableFactory[SortedSetFromMap] =
     new SortedSetFromMap.WrapperFactory(underlying.sortedMapFactory)
-
-  def rangeImpl(from: Option[A], until: Option[A]): SortedSetFromMap[A] =
-    new SortedSetFromMap(underlying.rangeImpl(from, until))
 }
 
 object SortedSetFromMap extends SortedSetFromMapMetaFactory[SortedMap, SortedSet] {

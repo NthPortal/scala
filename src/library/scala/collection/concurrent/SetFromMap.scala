@@ -15,35 +15,41 @@ package collection
 package concurrent
 
 import scala.collection.generic.DefaultSerializable
+import scala.collection.{mutable => m}
 
 @SerialVersionUID(3L)
-class SetFromMap[A](protected[collection] val underlying: Map[A, Unit],
-                    override val iterableFactory: IterableFactory[SetFromMap])
-  extends mutable.AbstractSet[A]
+class SetFromMap[A](override protected[collection] val underlying: Map[A, Unit])
+  extends mutable.SetFromMap[A](underlying)
     with Set[A]
-    with mutable.SetFromMapOps[A, SetFromMap, SetFromMap[A]]
-    with IterableFactoryDefaults[A, SetFromMap]
+    with mutable.SetFromMapOps[A, m.Map, m.Map[A, Unit], m.SetFromMap, m.SetFromMap[A]]
+    with IterableFactoryDefaults[A, m.SetFromMap]
     with DefaultSerializable {
+  override protected[this] def fromMap[B](m: mutable.Map[B, Unit]): mutable.SetFromMap[B] =
+    SetFromMap.fromMutableMap(m)
+
   override protected[this] def className: String = "SetFromMap"
+
+  override def iterableFactory: IterableFactory[m.SetFromMap] =
+    new SetFromMap.MutableFactory(underlying.mapFactory)
 }
 
 object SetFromMap extends SetFromMapMetaFactory[Map, Set] {
   def apply(factory: MapFactory[Map]): IterableFactory[SetFromMap] = new WrapperFactory(factory)
-  def apply[A](map: Map[A, Unit]): Set[A] = {
-    val factory = map.mapFactory
-    val safeFactory = factory.empty match {
-      case _: Map[_, _] => factory.asInstanceOf[MapFactory[Map]] // trust as concurrent
-      case _            => TrieMap
+  def apply[A](map: Map[A, Unit]): Set[A] = new SetFromMap(map)
+
+  @inline private def fromMutableMap[A](map: m.Map[A, Unit]): m.SetFromMap[A] =
+    map match {
+      case conc: Map[A, Unit] => new SetFromMap(conc)
+      case mut                => new m.SetFromMap(mut)
     }
-    new SetFromMap(map, apply(safeFactory))
-  }
 
   @SerialVersionUID(3L)
   private class WrapperFactory(mf: MapFactory[Map]) extends SetFromMapFactory[Map, SetFromMap](mf) {
-    protected[this] def fromMap[A](map: Map[A, Unit]): SetFromMap[A] = {
-      // we have to pass `this` in because `concurrent.Map#mapFactory` returns
-      // a `MapFactory[mutable.Map]`, not a `MapFactory[concurrent.Map]` :(
-      new SetFromMap(map, this)
-    }
+    protected[this] def fromMap[A](map: Map[A, Unit]): SetFromMap[A] = new SetFromMap(map)
+  }
+
+  @SerialVersionUID(3L)
+  private class MutableFactory(mf: MapFactory[m.Map]) extends SetFromMapFactory[m.Map, m.SetFromMap](mf) {
+    protected[this] def fromMap[A](map: m.Map[A, Unit]): m.SetFromMap[A] = fromMutableMap(map)
   }
 }

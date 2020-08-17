@@ -15,11 +15,22 @@ package collection
 
 import scala.collection.SetFromMapOps.WrappedMap
 
-trait SetFromMapOps[A, +CC[_], +C <: SetFromMapOps[A, CC, C]]
+trait SetFromMapOps[
+  A,
+  +MM[K, V] <: MapOps[K, V, MM, _],
+  +M <: MapOps[A, Unit, MM, M],
+  +CC[_],
+  +C <: SetFromMapOps[A, MM, M, CC, C]
+]
   extends SetOps[A, CC, C]
     with WrappedMap[A]
     with Serializable {
-  protected[collection] val underlying: Map[A, Unit]
+  protected[collection] val underlying: M
+
+  protected[this] def fromMap[B](m: MM[B, Unit]): CC[B]
+  protected[this] def fromSpecificMap(m: M): C
+
+  protected[this] def adapted[R](f: A => R): ((A, Unit)) => R = { case (elem, _) => f(elem) }
 
   def contains(elem: A): Boolean = underlying contains elem
   def iterator: Iterator[A] = underlying.keysIterator
@@ -32,6 +43,8 @@ trait SetFromMapOps[A, +CC[_], +C <: SetFromMapOps[A, CC, C]]
   override def headOption: Option[A] = underlying.headOption.map(_._1)
   override def last: A = underlying.last._1
   override def lastOption: Option[A] = underlying.lastOption.map(_._1)
+
+  override def tapEach[U](f: A => U): C = fromSpecificMap(underlying.tapEach(adapted(f)))
 }
 
 object SetFromMapOps {
@@ -41,20 +54,44 @@ object SetFromMapOps {
   }
 
   // unknown whether mutable or immutable
-  trait Unknown[A, +CC[_], +C <: SetFromMapOps[A, CC, C]]
-    extends SetFromMapOps[A, CC, C] {
+  trait Unknown[
+    A,
+    +MM[K, V] <: MapOps[K, V, MM, _],
+    +M <: MapOps[A, Unit, MM, M],
+    +CC[_],
+    +C <: Unknown[A, MM, M, CC, C]
+  ]
+    extends SetFromMapOps[A, MM, M, CC, C] {
     def diff(that: Set[A]): C =
       toIterable
         .foldLeft(newSpecificBuilder)((b, elem) => if (that contains elem) b else b += elem)
         .result()
   }
 
-  trait Sorted[A, +CC[X] <: SortedSet[X], +C <: SetFromMapOps[A, Set, C] with SortedSetOps[A, CC, C]]
-    extends SetFromMapOps[A, Set, C]
-      with SortedSetOps[A, CC, C] {
-    override protected[collection] val underlying: SortedMap[A, Unit]
+  trait Unsorted[A, +MM[K, V] <: MapOps[K, V, MM, MM[K, V]], +CC[X] <: Unsorted[X, MM, CC]]
+    extends SetFromMapOps[A, MM, MM[A, Unit], CC, CC[A]] {
+    protected[this] final def fromSpecificMap(m: MM[A, Unit]): CC[A] = fromMap(m)
+  }
+
+  trait Sorted[
+    A,
+    +MM[K, V] <: Map[K, V] with SortedMapOps[K, V, MM, MM[K, V]],
+    +UnsortedCC[X] <: Set[X],
+    +CC[X] <: Sorted[X, MM, UnsortedCC, CC] with SortedSet[X] with SortedSetOps[X, CC, CC[X]]
+  ]
+    extends SetFromMapOps[A, Map, MM[A, Unit], UnsortedCC, CC[A]]
+      with SortedSetOps[A, CC, CC[A]] {
+    override protected[collection] val underlying: MM[A, Unit]
+
+    @inline protected[this] final implicit def implicitOrd: Ordering[A] = ordering
+
+    protected[this] def fromSortedMap[B: Ordering](m: MM[B, Unit]): CC[B]
+    protected[this] final def fromSpecificMap(m: MM[A, Unit]): CC[A] = fromSortedMap(m)
 
     def iteratorFrom(start: A): Iterator[A] = underlying.keysIteratorFrom(start)
+
+    def rangeImpl(from: Option[A], until: Option[A]): CC[A] =
+      fromSortedMap(underlying.rangeImpl(from, until))
 
     override def head: A = underlying.firstKey
     override def firstKey: A = underlying.firstKey
