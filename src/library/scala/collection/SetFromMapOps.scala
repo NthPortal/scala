@@ -13,6 +13,7 @@
 package scala
 package collection
 
+import scala.annotation.implicitNotFound
 import scala.collection.SetFromMapOps.WrappedMap
 import scala.reflect.ClassTag
 
@@ -33,8 +34,6 @@ trait SetFromMapOps[
 
   // methods for adapting functions for a set to functions for a map
   @inline protected[this] def adapted[B](f: A => B): ((A, Unit)) => B = { case (elem, _) => f(elem) }
-  @inline protected[this] def adaptedPF[B](pf: PartialFunction[A, B]): PartialFunction[(A, Unit), B] =
-    adapted(pf.lift).unlift
   @inline protected[this] def adaptedTuple[B](f: A => B): ((A, Unit)) => (B, Unit) =
     { case (elem, _) => f(elem) -> () }
   @inline protected[this] def adaptedTuplePF[B](pf: PartialFunction[A, B]): PartialFunction[(A, Unit), (B, Unit)] =
@@ -55,7 +54,7 @@ trait SetFromMapOps[
   // TODO: fromSpecific, newSpecificBuilder
 
   override def collect[B](pf: PartialFunction[A, B]): CC[B] = fromMap(underlying collect adaptedTuplePF(pf))
-  override def collectFirst[B](pf: PartialFunction[A, B]): Option[B] = underlying collectFirst adaptedPF(pf)
+  override def collectFirst[B](pf: PartialFunction[A, B]): Option[B] = underlying collectFirst adapted(pf.lift).unlift
   override def copyToArray[B >: A](xs: Array[B], start: Int): Int = underlying.keySet.copyToArray(xs, start)
   override def copyToArray[B >: A](xs: Array[B], start: Int, len: Int): Int =
     underlying.keySet.copyToArray(xs, start, len)
@@ -85,16 +84,10 @@ trait SetFromMapOps[
   @deprecated("Check .knownSize instead of .hasDefiniteSize for more actionable information (see scaladoc for details)", "2.13.0")
   override def hasDefiniteSize: Boolean = underlying.hasDefiniteSize
   override def map[B](f: A => B): CC[B] = fromMap(underlying map adaptedTuple(f))
-  override def max[B >: A](implicit ord: Ordering[B]): A = underlying.keySet.max[B]
-  override def maxOption[B >: A](implicit ord: Ordering[B]): Option[A] = underlying.keySet.maxOption[B]
-  override def maxBy[B](f: A => B)(implicit cmp: Ordering[B]): A = underlying.keySet maxBy f
-  override def maxByOption[B](f: A => B)(implicit cmp: Ordering[B]): Option[A] =
-    underlying.keySet maxByOption f
-  override def min[B >: A](implicit ord: Ordering[B]): A = underlying.keySet.min[B]
-  override def minOption[B >: A](implicit ord: Ordering[B]): Option[A] = underlying.keySet.minOption[B]
-  override def minBy[B](f: A => B)(implicit cmp: Ordering[B]): A = underlying.keySet minBy f
-  override def minByOption[B](f: A => B)(implicit cmp: Ordering[B]): Option[A] =
-    underlying.keySet minByOption f
+  override def max[B >: A: Ordering]: A = underlying.keySet.max[B]
+  override def maxBy[B: Ordering](f: A => B): A = underlying.keySet maxBy f
+  override def min[B >: A: Ordering]: A = underlying.keySet.min[B]
+  override def minBy[B: Ordering](f: A => B): A = underlying.keySet minBy f
   override def partition(p: A => Boolean): (C, C) = {
     val (a, b) = underlying partition adapted(p)
     (fromSpecificMap(a), fromSpecificMap(b))
@@ -178,9 +171,9 @@ object SetFromMapOps {
     protected[this] final def fromSpecificMap(m: MM[A, Unit]): CC[A] = fromSortedMap(m)
 
     def iteratorFrom(start: A): Iterator[A] = underlying.keysIteratorFrom(start)
-
     def rangeImpl(from: Option[A], until: Option[A]): CC[A] =
       fromSortedMap(underlying.rangeImpl(from, until))
+    override def rangeTo(to: A): CC[A] = fromSortedMap(underlying rangeTo to)
 
     override def head: A = underlying.firstKey
     override def firstKey: A = underlying.firstKey
@@ -189,12 +182,30 @@ object SetFromMapOps {
     override def lastKey: A = underlying.lastKey
     override def lastOption: Option[A] = underlying.lastOption.map(_._1)
 
+    override def collect[B](pf: PartialFunction[A, B])(implicit @implicitNotFound(SortedSetOps.ordMsg) ev: Ordering[B]): CC[B] =
+      fromSortedMap(underlying collect adaptedTuplePF(pf))
     override def concat(that: IterableOnce[A]): CC[A] = fromSortedMap {
       that match {
         case coll: WrappedMap[A] => underlying concat coll.underlying
         case coll                => underlying concat coll.iterator.map((_, ()))
       }
     }
+    override def flatMap[B](f: A => IterableOnce[B])(implicit @implicitNotFound(SortedSetOps.ordMsg) ev: Ordering[B]): CC[B] =
+      fromSortedMap {
+        underlying flatMap {
+          case (elem, _) => f(elem) match {
+            case that: WrappedMap[B] => that.underlying
+            case that => that.iterator map { _ -> () }
+          }
+        }
+      }
+
+    override def map[B](f: A => B)(implicit @implicitNotFound(SortedSetOps.ordMsg) ev: Ordering[B]): CC[B] =
+      fromSortedMap(underlying map adaptedTuple(f))
+    override def max[B >: A: Ordering]: A = super[SortedSetOps].max[B]
+    override def maxBefore(key: A): Option[A] = underlying maxBefore key map { _._1 }
+    override def min[B >: A: Ordering]: A = super[SortedSetOps].min
+    override def minAfter(key: A): Option[A] = underlying minAfter key map { _._1 }
   }
 }
 
