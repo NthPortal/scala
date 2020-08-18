@@ -51,8 +51,6 @@ trait SetFromMapOps[
   override def last: A = underlying.last._1
   override def lastOption: Option[A] = underlying.lastOption.map(_._1)
 
-  // TODO: fromSpecific, newSpecificBuilder
-
   override def collect[B](pf: PartialFunction[A, B]): CC[B] = fromMap(underlying collect adaptedTuplePF(pf))
   override def collectFirst[B](pf: PartialFunction[A, B]): Option[B] = underlying collectFirst adapted(pf.lift).unlift
   override def copyToArray[B >: A](xs: Array[B], start: Int): Int = underlying.keySet.copyToArray(xs, start)
