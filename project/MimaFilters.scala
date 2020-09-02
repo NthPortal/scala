@@ -24,6 +24,26 @@ object MimaFilters extends AutoPlugin {
     // with JDK 11 and run MiMa it'll complain IteratorWrapper isn't forwards compatible with 2.13.0 - but we
     // don't publish the artifact built with JDK 11 anyways
     ProblemFilters.exclude[DirectMissingMethodProblem]("scala.collection.convert.JavaCollectionWrappers#IteratorWrapper.asIterator"),
+
+    // Fixes for scala/bug#12009
+    ProblemFilters.exclude[DirectMissingMethodProblem]("scala.collection.mutable.ArrayBufferView.this"),
+    ProblemFilters.exclude[FinalClassProblem]("scala.collection.IndexedSeqView$IndexedSeqViewIterator"),
+    ProblemFilters.exclude[FinalClassProblem]("scala.collection.IndexedSeqView$IndexedSeqViewReverseIterator"),
+    ProblemFilters.exclude[MissingClassProblem]("scala.collection.mutable.CheckedIndexedSeqView"),
+    ProblemFilters.exclude[MissingClassProblem]("scala.collection.mutable.CheckedIndexedSeqView$"),
+    ProblemFilters.exclude[MissingClassProblem]("scala.collection.mutable.CheckedIndexedSeqView$CheckedIterator"),
+    ProblemFilters.exclude[MissingClassProblem]("scala.collection.mutable.CheckedIndexedSeqView$CheckedReverseIterator"),
+    ProblemFilters.exclude[MissingClassProblem]("scala.collection.mutable.CheckedIndexedSeqView$Id"),
+    ProblemFilters.exclude[MissingClassProblem]("scala.collection.mutable.CheckedIndexedSeqView$Appended"),
+    ProblemFilters.exclude[MissingClassProblem]("scala.collection.mutable.CheckedIndexedSeqView$Prepended"),
+    ProblemFilters.exclude[MissingClassProblem]("scala.collection.mutable.CheckedIndexedSeqView$Concat"),
+    ProblemFilters.exclude[MissingClassProblem]("scala.collection.mutable.CheckedIndexedSeqView$Take"),
+    ProblemFilters.exclude[MissingClassProblem]("scala.collection.mutable.CheckedIndexedSeqView$TakeRight"),
+    ProblemFilters.exclude[MissingClassProblem]("scala.collection.mutable.CheckedIndexedSeqView$Drop"),
+    ProblemFilters.exclude[MissingClassProblem]("scala.collection.mutable.CheckedIndexedSeqView$DropRight"),
+    ProblemFilters.exclude[MissingClassProblem](s"scala.collection.mutable.CheckedIndexedSeqView$$Map"),
+    ProblemFilters.exclude[MissingClassProblem]("scala.collection.mutable.CheckedIndexedSeqView$Reverse"),
+    ProblemFilters.exclude[MissingClassProblem]("scala.collection.mutable.CheckedIndexedSeqView$Slice"),
   )
 
   override val buildSettings = Seq(
