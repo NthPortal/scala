@@ -166,6 +166,8 @@ class ArrayBuffer[A] private (initialElements: Array[AnyRef], initialSize: Int)
   def insertAll(@deprecatedName("n", "2.13.0") index: Int, elems: IterableOnce[A]): Unit = {
     checkWithinBounds(index, index)
     elems match {
+      case elems: AnyRef if elems eq this =>
+        insertAll(index, ArrayBuffer.from(this))
       case elems: collection.Iterable[A] =>
         val elemsLength = elems.size
         ensureSize(length + elemsLength)

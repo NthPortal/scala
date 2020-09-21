@@ -4,7 +4,7 @@ import org.junit.Test
 import org.junit.Assert.assertEquals
 
 import scala.annotation.nowarn
-import scala.tools.testkit.AssertUtil.assertThrows
+import scala.tools.testkit.AssertUtil.{assertSameElements, assertThrows}
 
 class ArrayBufferTest {
 
@@ -362,4 +362,12 @@ class ArrayBufferTest {
 
   @Test def t11482_allowNegativeInitialSize(): Unit =
     new ArrayBuffer(-1)
+
+  // scala/bug#12121
+  @Test
+  def insertAll_self(): Unit = {
+    val buf = ArrayBuffer(1, 2, 3)
+    buf.insertAll(1, buf)
+    assertSameElements(List(1, 1, 2, 3, 2, 3), buf)
+  }
 }
