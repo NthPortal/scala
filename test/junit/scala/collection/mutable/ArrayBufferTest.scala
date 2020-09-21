@@ -4,7 +4,7 @@ import org.junit.Test
 import org.junit.Assert.assertEquals
 
 import scala.annotation.nowarn
-import scala.tools.testkit.AssertUtil.{assertThrows, fail}
+import scala.tools.testkit.AssertUtil.{assertSameElements, assertThrows, fail}
 
 class ArrayBufferTest {
 
@@ -380,5 +380,13 @@ class ArrayBufferTest {
     iiobe( newAB(3), "3 is out of bounds (min 0, max 2)" )
     iiobe( newAB.remove(3), "3 is out of bounds (min 0, max 2)" )
     iiobe( newAB.remove(2, 2), "3 is out of bounds (min 0, max 2)" )
+  }
+
+  // scala/bug#12121
+  @Test
+  def insertAll_self(): Unit = {
+    val buf = ArrayBuffer(1, 2, 3)
+    buf.insertAll(1, buf)
+    assertSameElements(List(1, 1, 2, 3, 2, 3), buf)
   }
 }
