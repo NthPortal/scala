@@ -146,12 +146,14 @@ class ArrayBuffer[A] private (initialElements: Array[AnyRef], initialSize: Int)
   // Overridden to use array copying for efficiency where possible.
   override def addAll(elems: IterableOnce[A]): this.type = {
     elems match {
-      case elems: ArrayBuffer[_] =>
-        val elemsLength = elems.size0
+      case elems: collection.Iterable[A] =>
+        val elemsLength = elems.size
         if (elemsLength > 0) {
-          ensureSize(length + elemsLength)
-          Array.copy(elems.array, 0, array, length, elemsLength)
-          size0 = length + elemsLength
+          val len = size0
+          val newSize = len + elemsLength
+          ensureSize(newSize)
+          IterableOnce.copyElemsToArray(elems, array.asInstanceOf[Array[Any]], len, elemsLength)
+          size0 = newSize // update size AFTER the copy, in case we're appending a proxy
         }
       case _ => super.addAll(elems)
     }
@@ -177,27 +179,21 @@ class ArrayBuffer[A] private (initialElements: Array[AnyRef], initialSize: Int)
       case elems: collection.Iterable[A] =>
         val elemsLength = elems.size
         if (elemsLength > 0) {
-          ensureSize(length + elemsLength)
-          Array.copy(array, index, array, index + elemsLength, size0 - index)
-          size0 = size0 + elemsLength
-          elems match {
-            case elems: ArrayBuffer[_] =>
-              // if `elems eq this`, this works because `elems.array eq this.array`,
-              // we didn't overwrite the values being inserted after moving them in
-              // the previous copy a few lines up, and `System.arraycopy` will
-              // effectively "read" all the values before overwriting any of them.
-              Array.copy(elems.array, 0, array, index, elemsLength)
-            case _ =>
-              var i = 0
-              val it = elems.iterator
-              while (i < elemsLength) {
-                this(index + i) = it.next()
-                i += 1
-              }
-          }
+          val len = size0
+          val newSize = len + elemsLength
+          ensureSize(newSize)
+          Array.copy(array, index, array, index + elemsLength, len - index)
+          // if `elems eq this`, this copy is safe because
+          //   - `elems.array eq this.array`
+          //   - we didn't overwrite the values being inserted after moving them in
+          //     the previous line
+          //   - `copyElemsToArray` will call `System.arraycopy`
+          //   - `System.arraycopy` will effectively "read" all the values before
+          //     overwriting any of them when two arrays are the the same reference
+          IterableOnce.copyElemsToArray(elems, array.asInstanceOf[Array[Any]], index, elemsLength)
+          size0 = newSize // update size AFTER the copy, in case we're inserting a proxy
         }
-      case _ =>
-        insertAll(index, ArrayBuffer.from(elems))
+      case _ => insertAll(index, ArrayBuffer.from(elems))
     }
   }
 
