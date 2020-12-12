@@ -146,12 +146,14 @@ class ArrayBuffer[A] private (initialElements: Array[AnyRef], initialSize: Int)
   // Overridden to use array copying for efficiency where possible.
   override def addAll(elems: IterableOnce[A]): this.type = {
     elems match {
-      case elems: ArrayBuffer[_] =>
-        val elemsLength = elems.size0
+      case elems: collection.Iterable[A] =>
+        val elemsLength = elems.size
         if (elemsLength > 0) {
-          ensureSize(length + elemsLength)
-          Array.copy(elems.array, 0, array, length, elemsLength)
-          size0 = length + elemsLength
+          val len = size0
+          val newSize = len + elemsLength
+          ensureSize(newSize)
+          IterableOnce.copyElemsToArray(elems, array.asInstanceOf[Array[Any]], len, elemsLength)
+          size0 = newSize
         }
       case _ => super.addAll(elems)
     }
@@ -179,23 +181,14 @@ class ArrayBuffer[A] private (initialElements: Array[AnyRef], initialSize: Int)
       case elems: collection.Iterable[A] =>
         val elemsLength = elems.size
         if (elemsLength > 0) {
-          ensureSize(length + elemsLength)
-          Array.copy(array, index, array, index + elemsLength, size0 - index)
-          size0 = size0 + elemsLength
-          elems match {
-            case elems: ArrayBuffer[_] =>
-              Array.copy(elems.array, 0, array, index, elemsLength)
-            case _ =>
-              var i = 0
-              val it = elems.iterator
-              while (i < elemsLength) {
-                this(index + i) = it.next()
-                i += 1
-              }
-          }
+          val len = size0
+          val newSize = len + elemsLength
+          ensureSize(newSize)
+          Array.copy(array, index, array, index + elemsLength, len - index)
+          IterableOnce.copyElemsToArray(elems, array, index, elemsLength)
+          size0 = newSize
         }
-      case _ =>
-        insertAll(index, ArrayBuffer.from(elems))
+      case _ => insertAll(index, ArrayBuffer.from(elems))
     }
   }
 
