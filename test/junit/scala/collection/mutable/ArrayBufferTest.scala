@@ -455,4 +455,21 @@ class ArrayBufferTest {
     buf.insertAll(1, buf)
     assertSameElements(List(1, 1, 2, 3, 2, 3), buf)
   }
+
+  // scala/bug#12284
+  @Test
+  def viewConsistency(): Unit = {
+    def check[U](op: ArrayBuffer[Int] => U): Unit = {
+      val buf = ArrayBuffer(1, 2, 3)
+      val view = buf.view
+      op(buf)
+      assertSameElements(buf, view)
+    }
+
+    check(_.clear())
+    check(_.dropRightInPlace(1))
+    check(_.dropInPlace(1))
+    check(_ ++= (1 to 100))
+    check(_.insertAll(1, 1 to 100))
+  }
 }
