@@ -114,7 +114,8 @@ class ArrayBuffer[A] private (initialElements: Array[AnyRef], initialSize: Int)
 
   def length = size0
 
-  override def view: ArrayBufferView[A] = new ArrayBufferView(array, size0, () => mutationCount)
+  // TODO: return `IndexedSeqView` rather than `ArrayBufferView`
+  override def view: ArrayBufferView[A] = new ArrayBufferView(this, () => mutationCount)
 
   override def iterableFactory: SeqFactory[ArrayBuffer] = ArrayBuffer
 
@@ -315,18 +316,30 @@ object ArrayBuffer extends StrictOptimizedSeqFactory[ArrayBuffer] {
   }
 }
 
-final class ArrayBufferView[A] private[mutable](val array: Array[AnyRef], val length: Int, mutationCount: () => Int)
+// TODO: use `CheckedIndexedSeqView.Id` once we can change the return type of
+final class ArrayBufferView[A] private[mutable](underlying: ArrayBuffer[A], mutationCount: () => Int)
   extends AbstractIndexedSeqView[A] {
   @deprecated("never intended to be public; call ArrayBuffer#view instead", since = "2.13.5")
   def this(array: Array[AnyRef], length: Int) = {
     // this won't actually track mutation, but it would be a pain to have the implementation
     // check if we have a method to get the current mutation count or not on every method and
     // change what it does based on that. hopefully no one ever calls this.
-    this(array, length, () => 0)
+    this({
+      val _array = array
+      val _length = length
+      new ArrayBuffer[A](0) {
+        this.array = _array
+        this.size0 = _length
+      }
+    }, () => 0)
   }
 
+  @deprecated("never intended to be public", since = "2.13.5")
+  def array: Array[AnyRef] = underlying.toArray[Any].asInstanceOf[Array[AnyRef]]
+
   @throws[ArrayIndexOutOfBoundsException]
-  def apply(n: Int): A = if (n < length) array(n).asInstanceOf[A] else throw new IndexOutOfBoundsException(s"$n is out of bounds (min 0, max ${length - 1})")
+  def apply(n: Int): A = underlying(n)
+  def length: Int = underlying.length
   override protected[this] def className = "ArrayBufferView"
 
   // we could inherit all these from `CheckedIndexedSeqView`, except this class is public
