@@ -78,6 +78,9 @@ object MimaFilters extends AutoPlugin {
 
     // #9741
     ProblemFilters.exclude[MissingClassProblem]("scala.collection.immutable.SeqMap$SeqMapBuilderImpl"), // private[SeqMap]
+
+    // #9782
+    ProblemFilters.exclude[MissingClassProblem]("scala.collection.mutable.ArrayBuffer$SplitInfo"), // ArrayBuffer#private[this]
   )
 
   override val buildSettings = Seq(
