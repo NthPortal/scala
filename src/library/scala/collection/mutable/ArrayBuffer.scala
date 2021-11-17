@@ -19,7 +19,6 @@ import java.util.Arrays
 import scala.annotation.nowarn
 import scala.collection.Stepper.EfficientSplit
 import scala.collection.generic.DefaultSerializable
-import scala.util.chaining._
 
 /** An implementation of the `Buffer` class using an array to
   *  represent the assembled sequence internally. Append, update and random
@@ -54,6 +53,7 @@ class ArrayBuffer[A] private (initialElements: Array[AnyRef], initialSize: Int)
 
   @transient private[this] var mutationCount: Int = 0
 
+  // needs to be private[collection] for parallel-collections
   protected[collection] var array: Array[AnyRef] = initialElements
   protected var size0 = initialSize
 
@@ -272,10 +272,10 @@ object ArrayBuffer extends StrictOptimizedSeqFactory[ArrayBuffer] {
   final val DefaultInitialSize = 16
   private[this] val emptyArray = new Array[AnyRef](0)
 
-  // Avoid reallocation of buffer if length is known.
   def from[B](coll: collection.IterableOnce[B]): ArrayBuffer[B] = {
     val k = coll.knownSize
     if (k >= 0) {
+      // Avoid reallocation of buffer if length is known
       val array = ensureSize(emptyArray, 0, k) // don't duplicate sizing logic, and check VM array size limit
       IterableOnce.copyElemsToArray(coll, array.asInstanceOf[Array[Any]])
       new ArrayBuffer[B](array, k)
@@ -290,36 +290,46 @@ object ArrayBuffer extends StrictOptimizedSeqFactory[ArrayBuffer] {
 
   def empty[A]: ArrayBuffer[A] = new ArrayBuffer[A]()
 
+  /**
+   * @param arrayLen  the length of the backing array
+   * @param targetLen the minimum length to resize up to
+   * @return -1 if no resizing is needed, or the size for the new array otherwise
+   */
+  private def resizeUp(arrayLen: Long, targetLen: Long): Int = {
+    if (targetLen <= arrayLen) -1
+    else {
+      if (targetLen > Int.MaxValue) throw new Exception(s"Collections cannot have more than ${Int.MaxValue} elements")
+      IterableOnce.checkArraySizeWithinVMLimit(targetLen.toInt) // safe because `targetSize <= Int.MaxValue`
+
+      val newLen = math.max(targetLen, math.max(arrayLen * 2, DefaultInitialSize))
+      math.min(newLen, scala.runtime.PStatics.VM_MaxArraySize).toInt
+    }
+  }
   // if necessary, copy (curSize elements of) the array to a new array of capacity n.
   // Should use Array.copyOf(array, resizeEnsuring(array.length))?
   private def ensureSize(array: Array[AnyRef], curSize: Int, targetSize: Long): Array[AnyRef] = {
-    if (targetSize < array.length) array
+    val newLen = resizeUp(array.length, targetSize)
+    if (newLen < 0) array
     else {
-      if (targetSize > Int.MaxValue) throw new Exception(s"Collections cannot have more than ${Int.MaxValue} elements")
-      IterableOnce.checkArraySizeWithinVMLimit(targetSize.toInt) // safe because `targetSize <= Int.MaxValue`
-
-      var newSize = math.max(targetSize, DefaultInitialSize)
-      // find the nearest power of 2 >= `newSize`
-      val powerOfTwoEqualOrBelow = java.lang.Long.highestOneBit(newSize) // result is <= `newSize`
-      if (newSize != powerOfTwoEqualOrBelow) newSize = powerOfTwoEqualOrBelow * 2
-
-      val finalSize = if (newSize > Int.MaxValue) scala.runtime.PStatics.VM_MaxArraySize else newSize.toInt
-
-      val res = new Array[AnyRef](finalSize)
+      val res = new Array[AnyRef](newLen)
       System.arraycopy(array, 0, res, 0, curSize)
       res
     }
   }
 
+  /**
+   * @param arrayLen  the length of the backing array
+   * @param targetLen the length to resize down to, if smaller than `arrayLen`
+   * @return -1 if no resizing is needed, or the size for the new array otherwise
+   */
+  private def resizeDown(arrayLen: Int, targetLen: Int): Int =
+    if (targetLen >= arrayLen) -1 else math.max(targetLen, 0)
   private def downsize(array: Array[AnyRef], targetSize: Int): Array[AnyRef] = {
-    var newSize = math.max(targetSize, DefaultInitialSize)
-    // find the nearest power of 2 >= `newSize`
-    val powerOfTwoEqualOrBelow = java.lang.Integer.highestOneBit(newSize) // result is <= `newSize`
-    if (newSize != powerOfTwoEqualOrBelow) newSize = powerOfTwoEqualOrBelow * 2 // might overflow to Int.MinValue
-
-    if (newSize >= array.length || newSize < 0 /* overflow */) array
+    val newLen = resizeDown(array.length, targetSize)
+    if (newLen < 0) array
+    else if (newLen == 0) emptyArray
     else {
-      val res = new Array[AnyRef](newSize)
+      val res = new Array[AnyRef](newLen)
       System.arraycopy(array, 0, res, 0, targetSize)
       res
     }
