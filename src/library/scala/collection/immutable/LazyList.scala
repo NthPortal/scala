@@ -17,7 +17,7 @@ package immutable
 import java.io.{ObjectInputStream, ObjectOutputStream}
 import java.lang.{StringBuilder => JStringBuilder}
 
-import scala.annotation.tailrec
+import scala.annotation.{tailrec, unchecked}
 import scala.collection.generic.SerializeEnd
 import scala.collection.mutable.{Builder, ReusableBuilder, StringBuilder}
 import scala.language.implicitConversions
@@ -257,8 +257,8 @@ import scala.runtime.Statics
   *                        on the result (e.g. calling `head` or `tail`, or checking if it is empty).
   *  @define evaluatesAllElements This method evaluates all elements of the collection.
   */
-@SerialVersionUID(3L)
-final class LazyList[+A] private(private[this] var lazyState: () => LazyList.State[A])
+@SerialVersionUID(4L)
+final class LazyList[+A] private(evaluator: LazyList.Evaluator[A])
   extends AbstractSeq[A]
     with LinearSeq[A]
     with LinearSeqOps[A, LazyList, LazyList[A]]
@@ -266,30 +266,45 @@ final class LazyList[+A] private(private[this] var lazyState: () => LazyList.Sta
     with Serializable {
   import LazyList._
 
-  @volatile private[this] var stateEvaluated: Boolean = false
-  @inline private def stateDefined: Boolean = stateEvaluated
-  private[this] var midEvaluation = false
+  private[this] var _head: Any = evaluator
+  private[this] var _tail: Any = evaluator
 
-  private lazy val state: State[A] = {
-    // if it's already mid-evaluation, we're stuck in an infinite
-    // self-referential loop (also it's empty)
-    if (midEvaluation) {
-      throw new RuntimeException(
-        "LazyList evaluation depends on its own result (self-reference); see docs for more info"
-      )
+  private[this] def evaluatedHead: Any =
+    _head match {
+      case eval: Evaluator[A @unchecked] =>
+        eval.state match {
+          case cons: State.Cons[A] =>
+            val head = cons.head
+            _head = head
+            _tail = cons.tail
+            head
+          case empty /* State.Empty */ => empty
+        }
+      case other => other // already evaluated
     }
-    midEvaluation = true
-    val res = try lazyState() finally midEvaluation = false
-    // if we set it to `true` before evaluating, we may infinite loop
-    // if something expects `state` to already be evaluated
-    stateEvaluated = true
-    lazyState = null // allow GC
-    res
-  }
+  private[this] def evaluatedTail: Any =
+    _head match {
+      case eval: Evaluator[A @unchecked] =>
+        eval.state match {
+          case cons: State.Cons[A] =>
+            val tail = cons.tail
+            _head = cons.head
+            _tail = tail
+            tail
+          case empty /* State.Empty */ => empty
+        }
+      case other => other // already evaluated
+    }
+
+  @inline private def stateDefined: Boolean =
+    _head match {
+      case eval: Evaluator[_] => eval.stateEvaluated
+      case _                  => true
+    }
 
   override def iterableFactory: SeqFactory[LazyList] = LazyList
 
-  override def isEmpty: Boolean = state eq State.Empty
+  override def isEmpty: Boolean = evaluatedHead.asInstanceOf[AnyRef] eq State.Empty
 
   /** @inheritdoc
     *
@@ -297,12 +312,18 @@ final class LazyList[+A] private(private[this] var lazyState: () => LazyList.Sta
     */
   override def knownSize: Int = if (knownIsEmpty) 0 else -1
 
-  override def head: A = state.head
+  override def head: A = evaluatedHead match {
+    case State.Empty => State.Empty.head
+    case value       => value.asInstanceOf[A]
+  }
 
-  override def tail: LazyList[A] = state.tail
+  override def tail: LazyList[A] = evaluatedTail match {
+    case State.Empty => State.Empty.tail
+    case value       => value.asInstanceOf[LazyList[A]]
+  }
 
-  @inline private[this] def knownIsEmpty: Boolean = stateEvaluated && (isEmpty: @inline)
-  @inline private def knownNonEmpty: Boolean = stateEvaluated && !(isEmpty: @inline)
+  @inline private[this] def knownIsEmpty: Boolean = stateDefined && (isEmpty: @inline)
+  @inline private def knownNonEmpty: Boolean = stateDefined && !(isEmpty: @inline)
 
   /** Evaluates all undefined elements of the lazy list.
     *
@@ -1010,8 +1031,32 @@ object LazyList extends SeqFactory[LazyList] {
     final class Cons[A](val head: A, val tail: LazyList[A]) extends State[A]
   }
 
+  @SerialVersionUID(3L)
+  private final class Evaluator[A](lazyState: () => State[A]) {
+    @volatile private[this] var _stateEvaluated: Boolean = false
+    private[this] var midEvaluation = false
+    private[LazyList] def stateEvaluated: Boolean = _stateEvaluated
+
+    private[LazyList] lazy val state: State[A] = {
+      // if it's already mid-evaluation, we're stuck in an infinite
+      // self-referential loop (also it's empty)
+      if (midEvaluation) {
+        throw new RuntimeException(
+          "LazyList evaluation depends on its own result (self-reference); see docs for more info"
+        )
+      }
+      midEvaluation = true
+      val res = try lazyState() finally midEvaluation = false
+      // if we set it to `true` before evaluating, we may infinite loop
+      // if something expects `state` to already be evaluated
+      _stateEvaluated = true
+      res
+    }
+  }
+
   /** Creates a new LazyList. */
-  @inline private def newLL[A](state: => State[A]): LazyList[A] = new LazyList[A](() => state)
+  @inline private def newLL[A](state: => State[A]): LazyList[A] =
+    new LazyList[A](new Evaluator(() => state))
 
   /** Creates a new State.Cons. */
   @inline private def sCons[A](hd: A, tl: LazyList[A]): State[A] = new State.Cons[A](hd, tl)
