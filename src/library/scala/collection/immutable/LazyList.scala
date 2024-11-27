@@ -267,7 +267,7 @@ final class LazyList[+A] private(evaluator: LazyList.Evaluator[A])
   import LazyList._
 
   private[this] var _head: Any = evaluator
-  private[this] var _tail: Any = evaluator
+  private var _tail: AnyRef = evaluator
 
   private[this] def evaluatedHead: Any =
     _head match {
@@ -282,8 +282,8 @@ final class LazyList[+A] private(evaluator: LazyList.Evaluator[A])
         }
       case other => other // already evaluated
     }
-  private[this] def evaluatedTail: Any =
-    _head match {
+  private[this] def evaluatedTail: AnyRef =
+    _tail match {
       case eval: Evaluator[A @unchecked] =>
         eval.state match {
           case cons: State.Cons[A] =>
@@ -301,6 +301,13 @@ final class LazyList[+A] private(evaluator: LazyList.Evaluator[A])
       case eval: Evaluator[_] => eval.stateEvaluated
       case _                  => true
     }
+
+  // TODO: consider `Evaluator` as a trait with an already-evaluated variant
+  private def toState: State[A] = _head match {
+    case eval: Evaluator[A @unchecked] => eval.state
+    case e @ State.Empty => e
+    case h => sCons(h.asInstanceOf[A], evaluatedTail.asInstanceOf[LazyList[A]])
+  }
 
   override def iterableFactory: SeqFactory[LazyList] = LazyList
 
@@ -420,7 +427,7 @@ final class LazyList[+A] private(evaluator: LazyList.Evaluator[A])
   def lazyAppendedAll[B >: A](suffix: => collection.IterableOnce[B]): LazyList[B] =
     newLL {
       if (isEmpty) suffix match {
-        case lazyList: LazyList[B]       => lazyList.state // don't recompute the LazyList
+        case lazyList: LazyList[B]       => lazyList.toState // don't recompute the LazyList
         case coll if coll.knownSize == 0 => State.Empty
         case coll                        => stateFromIterator(coll.iterator)
       }
@@ -539,7 +546,7 @@ final class LazyList[+A] private(evaluator: LazyList.Evaluator[A])
   override def prependedAll[B >: A](prefix: collection.IterableOnce[B]): LazyList[B] =
     if (knownIsEmpty) LazyList.from(prefix)
     else if (prefix.knownSize == 0) this
-    else newLL(stateFromIteratorConcatSuffix(prefix.iterator)(state))
+    else newLL(stateFromIteratorConcatSuffix(prefix.iterator)(toState))
 
   /** @inheritdoc
     *
@@ -833,7 +840,7 @@ final class LazyList[+A] private(evaluator: LazyList.Evaluator[A])
   override def padTo[B >: A](len: Int, elem: B): LazyList[B] = {
     if (len <= 0) this
     else newLL {
-      if (isEmpty) LazyList.fill(len)(elem).state
+      if (isEmpty) LazyList.fill(len)(elem).toState
       else sCons(head, tail.padTo(len - 1, elem))
     }
   }
@@ -848,7 +855,7 @@ final class LazyList[+A] private(evaluator: LazyList.Evaluator[A])
 
   private def patchImpl[B >: A](from: Int, other: IterableOnce[B], replaced: Int): LazyList[B] =
     newLL {
-      if (from <= 0) stateFromIteratorConcatSuffix(other.iterator)(LazyList.dropImpl(this, replaced).state)
+      if (from <= 0) stateFromIteratorConcatSuffix(other.iterator)(LazyList.dropImpl(this, replaced).toState)
       else if (isEmpty) stateFromIterator(other.iterator)
       else sCons(head, tail.patchImpl(from - 1, other, replaced))
     }
@@ -906,12 +913,12 @@ final class LazyList[+A] private(evaluator: LazyList.Evaluator[A])
       @inline def appendCursorElement(): Unit = b.append(sep).append(cursor.head)
       var scout = tail
       @inline def scoutNonEmpty: Boolean = scout.stateDefined && !scout.isEmpty
-      if ((cursor ne scout) && (!scout.stateDefined || (cursor.state ne scout.state))) {
+      if ((cursor ne scout) && (!scout.stateDefined || (cursor._tail ne scout._tail))) {
         cursor = scout
         if (scoutNonEmpty) {
           scout = scout.tail
           // Use 2x 1x iterator trick for cycle detection; slow iterator can add strings
-          while ((cursor ne scout) && scoutNonEmpty && (cursor.state ne scout.state)) {
+          while ((cursor ne scout) && scoutNonEmpty && (cursor._tail ne scout._tail)) {
             appendCursorElement()
             cursor = cursor.tail
             scout = scout.tail
@@ -927,7 +934,7 @@ final class LazyList[+A] private(evaluator: LazyList.Evaluator[A])
         // if cursor (eq scout) has state defined, it is empty; else unknown state
         if (!cursor.stateDefined) b.append(sep).append("<not computed>")
       } else {
-        @inline def same(a: LazyList[A], b: LazyList[A]): Boolean = (a eq b) || (a.state eq b.state)
+        @inline def same(a: LazyList[A], b: LazyList[A]): Boolean = (a eq b) || (a._tail eq b._tail)
         // Cycle.
         // If we have a prefix of length P followed by a cycle of length C,
         // the scout will be at position (P%C) in the cycle when the cursor
@@ -1126,7 +1133,7 @@ object LazyList extends SeqFactory[LazyList] {
         val head = it.next()
         rest     = rest.tail
         restRef  = rest                       // restRef.elem = rest
-        sCons(head, newLL(stateFromIteratorConcatSuffix(it)(flatMapImpl(rest, f).state)))
+        sCons(head, newLL(stateFromIteratorConcatSuffix(it)(flatMapImpl(rest, f).toState)))
       } else State.Empty
     }
   }
@@ -1144,7 +1151,7 @@ object LazyList extends SeqFactory[LazyList] {
         i      -= 1
         iRef    = i                      // iRef.elem    = i
       }
-      rest.state
+      rest.toState
     }
   }
 
@@ -1157,7 +1164,7 @@ object LazyList extends SeqFactory[LazyList] {
         rest    = rest.tail
         restRef = rest                          // restRef.elem = rest
       }
-      rest.state
+      rest.toState
     }
   }
 
@@ -1185,7 +1192,7 @@ object LazyList extends SeqFactory[LazyList] {
         restRef  = rest                           // restRef.elem  = rest
       }
       // `rest` is the last `n` elements (or all of them)
-      rest.state
+      rest.toState
     }
   }
 
@@ -1196,7 +1203,7 @@ object LazyList extends SeqFactory[LazyList] {
       *  @param hd   The first element of the result lazy list
       *  @param tl   The remaining elements of the result lazy list
       */
-    def apply[A](hd: => A, tl: => LazyList[A]): LazyList[A] = newLL(sCons(hd, newLL(tl.state)))
+    def apply[A](hd: => A, tl: => LazyList[A]): LazyList[A] = newLL(sCons(hd, newLL(tl.toState)))
 
     /** Maps a lazy list to its head and tail */
     def unapply[A](xs: LazyList[A]): Option[(A, LazyList[A])] = #::.unapply(xs)
@@ -1208,7 +1215,7 @@ object LazyList extends SeqFactory[LazyList] {
     /** Construct a LazyList consisting of a given first element followed by elements
       *  from another LazyList.
       */
-    def #:: [B >: A](elem: => B): LazyList[B] = newLL(sCons(elem, newLL(l().state)))
+    def #:: [B >: A](elem: => B): LazyList[B] = newLL(sCons(elem, newLL(l().toState)))
     /** Construct a LazyList consisting of the concatenation of the given LazyList and
       *  another LazyList.
       */
@@ -1442,7 +1449,7 @@ object LazyList extends SeqFactory[LazyList] {
       // scala/scala#10118: caution that no code path can evaluate `tail.state`
       // before the resulting LazyList is returned
       val it = init.toList.iterator
-      coll = newLL(stateFromIteratorConcatSuffix(it)(tail.state))
+      coll = newLL(stateFromIteratorConcatSuffix(it)(tail.toState))
     }
 
     private[this] def readResolve(): Any = coll
