@@ -410,10 +410,8 @@ final class LazyList[+A] private(evaluator: LazyList.Evaluator[A])
 
   protected[this] def writeReplace(): AnyRef =
     _head match {
-      case eval: Evaluator[A @unchecked] =>
-        val lazyState = eval.lazyState
-        if (lazyState == null) new ConsSerializationProxy[A](this)
-        else new LazySerializationProxy[A](lazyState)
+      case eval: Evaluator[A @unchecked] if !eval.stateEvaluated =>
+        new LazySerializationProxy[A](eval)
       case State.Empty => EmptySerializationProxy
       case _ => new ConsSerializationProxy[A](this)
     }
@@ -1044,9 +1042,10 @@ object LazyList extends SeqFactory[LazyList] {
   }
 
   @SerialVersionUID(3L)
-  private final class Evaluator[A](var lazyState: () => State[A]) {
+  private final class Evaluator[A](var lazyState: () => State[A]) extends Serializable {
+    @volatile private[this] var _stateEvaluated: Boolean = false
     @transient private[this] var midEvaluation = false
-    def stateEvaluated: Boolean = lazyState == null
+    def stateEvaluated: Boolean = _stateEvaluated
 
     lazy val state: State[A] = {
       // if it's already mid-evaluation, we're stuck in an infinite
@@ -1060,6 +1059,7 @@ object LazyList extends SeqFactory[LazyList] {
       val res = try lazyState() finally midEvaluation = false
       // if we set it to `true` before evaluating, we may infinite loop
       // if something expects `state` to already be evaluated
+      _stateEvaluated = true
       lazyState = null
       res
     }
@@ -1428,7 +1428,7 @@ object LazyList extends SeqFactory[LazyList] {
     * of long evaluated lazy lists without exhausting the stack through recursive serialization of cons cells.
     */
   @SerialVersionUID(3L)
-  private final class ConsSerializationProxy[A](@transient protected var coll: LazyList[A]) extends Serializable {
+  final class ConsSerializationProxy[A](@transient protected var coll: LazyList[A]) extends Serializable {
 
     private[this] def writeObject(out: ObjectOutputStream): Unit = {
       out.defaultWriteObject()
@@ -1460,7 +1460,7 @@ object LazyList extends SeqFactory[LazyList] {
   }
 
   @SerialVersionUID(3L)
-  private object EmptySerializationProxy extends Serializable {
+  object EmptySerializationProxy extends Serializable {
     private[this] def writeObject(out: ObjectOutputStream): Unit =
       out.defaultWriteObject()
 
@@ -1471,17 +1471,17 @@ object LazyList extends SeqFactory[LazyList] {
   }
 
   @SerialVersionUID(3L)
-  private final class LazySerializationProxy[A](@transient protected var lazyState: () => State[A]) extends Serializable {
+  private final class LazySerializationProxy[A](@transient protected var eval: Evaluator[A]) extends Serializable {
     private[this] def writeObject(out: ObjectOutputStream): Unit = {
       out.defaultWriteObject()
-      out.writeObject(lazyState)
+      out.writeObject(eval)
     }
 
     private[this] def readObject(in: ObjectInputStream): Unit = {
       in.defaultReadObject()
-      lazyState = in.readObject().asInstanceOf[() => State[A]]
+      eval = in.readObject().asInstanceOf[Evaluator[A]]
     }
 
-    private[this] def readResolve(): Any = newLL(lazyState())
+    private[this] def readResolve(): Any = new LazyList[A](eval)
   }
 }
