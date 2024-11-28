@@ -273,10 +273,10 @@ final class LazyList[+A] private(evaluator: LazyList.Evaluator[A])
     _head match {
       case eval: Evaluator[A @unchecked] =>
         eval.state match {
-          case cons: State.Cons[A] =>
-            val head = cons.head
+          case c: State.Cons[A] =>
+            val head = c.head
             _head = head
-            _tail = cons.tail
+            _tail = c.tail
             head
           case empty /* State.Empty */ => empty
         }
@@ -286,9 +286,9 @@ final class LazyList[+A] private(evaluator: LazyList.Evaluator[A])
     _tail match {
       case eval: Evaluator[A @unchecked] =>
         eval.state match {
-          case cons: State.Cons[A] =>
-            val tail = cons.tail
-            _head = cons.head
+          case c: State.Cons[A] =>
+            val tail = c.tail
+            _head = c.head
             _tail = tail
             tail
           case empty /* State.Empty */ => empty
@@ -302,10 +302,9 @@ final class LazyList[+A] private(evaluator: LazyList.Evaluator[A])
       case _                  => true
     }
 
-  // TODO: consider `Evaluator` as a trait with an already-evaluated variant
   private def toState: State[A] = _head match {
     case eval: Evaluator[A @unchecked] => eval.state
-    case e @ State.Empty => e
+    case State.Empty => State.Empty
     case h => sCons(h.asInstanceOf[A], evaluatedTail.asInstanceOf[LazyList[A]])
   }
 
@@ -409,9 +408,15 @@ final class LazyList[+A] private(evaluator: LazyList.Evaluator[A])
     if (isEmpty) z
     else tail.foldLeft(op(z, head))(op)
 
-  // State.Empty doesn't use the SerializationProxy
   protected[this] def writeReplace(): AnyRef =
-    if (knownNonEmpty) new LazyList.SerializationProxy[A](this) else this
+    _head match {
+      case eval: Evaluator[A @unchecked] =>
+        val lazyState = eval.lazyState
+        if (lazyState == null) new ConsSerializationProxy[A](this)
+        else new LazySerializationProxy[A](lazyState)
+      case State.Empty => EmptySerializationProxy
+      case _ => new ConsSerializationProxy[A](this)
+    }
 
   override protected[this] def className = "LazyList"
 
@@ -1039,12 +1044,11 @@ object LazyList extends SeqFactory[LazyList] {
   }
 
   @SerialVersionUID(3L)
-  private final class Evaluator[A](lazyState: () => State[A]) {
-    @volatile private[this] var _stateEvaluated: Boolean = false
-    private[this] var midEvaluation = false
-    private[LazyList] def stateEvaluated: Boolean = _stateEvaluated
+  private final class Evaluator[A](var lazyState: () => State[A]) {
+    @transient private[this] var midEvaluation = false
+    def stateEvaluated: Boolean = lazyState == null
 
-    private[LazyList] lazy val state: State[A] = {
+    lazy val state: State[A] = {
       // if it's already mid-evaluation, we're stuck in an infinite
       // self-referential loop (also it's empty)
       if (midEvaluation) {
@@ -1056,7 +1060,7 @@ object LazyList extends SeqFactory[LazyList] {
       val res = try lazyState() finally midEvaluation = false
       // if we set it to `true` before evaluating, we may infinite loop
       // if something expects `state` to already be evaluated
-      _stateEvaluated = true
+      lazyState = null
       res
     }
   }
@@ -1424,7 +1428,7 @@ object LazyList extends SeqFactory[LazyList] {
     * of long evaluated lazy lists without exhausting the stack through recursive serialization of cons cells.
     */
   @SerialVersionUID(3L)
-  final class SerializationProxy[A](@transient protected var coll: LazyList[A]) extends Serializable {
+  private final class ConsSerializationProxy[A](@transient protected var coll: LazyList[A]) extends Serializable {
 
     private[this] def writeObject(out: ObjectOutputStream): Unit = {
       out.defaultWriteObject()
@@ -1453,5 +1457,31 @@ object LazyList extends SeqFactory[LazyList] {
     }
 
     private[this] def readResolve(): Any = coll
+  }
+
+  @SerialVersionUID(3L)
+  private object EmptySerializationProxy extends Serializable {
+    private[this] def writeObject(out: ObjectOutputStream): Unit =
+      out.defaultWriteObject()
+
+    private[this] def readObject(in: ObjectInputStream): Unit =
+      in.defaultReadObject()
+
+    private[this] def readResolve(): Any = _empty
+  }
+
+  @SerialVersionUID(3L)
+  private final class LazySerializationProxy[A](@transient protected var lazyState: () => State[A]) extends Serializable {
+    private[this] def writeObject(out: ObjectOutputStream): Unit = {
+      out.defaultWriteObject()
+      out.writeObject(lazyState)
+    }
+
+    private[this] def readObject(in: ObjectInputStream): Unit = {
+      in.defaultReadObject()
+      lazyState = in.readObject().asInstanceOf[() => State[A]]
+    }
+
+    private[this] def readResolve(): Any = newLL(lazyState())
   }
 }
